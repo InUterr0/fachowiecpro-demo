@@ -88,6 +88,29 @@ function offersLeft(c){
   if(p.offers===Infinity) return Infinity;
   return Math.max(0, p.offers - (c.offersUsed||0));
 }
+// Szacowanie wielkości zlecenia → cena pojedynczej oferty
+const OFFER_TIERS = [
+  {id:'small',  label:'drobne',  price:50},
+  {id:'medium', label:'średnie', price:100},
+  {id:'large',  label:'duże',    price:200},
+];
+function jobSize(j){
+  const nums = (j.budget||'').replace(/[\s ]/g,'').match(/\d+/g);
+  const max = nums ? Math.max(...nums.map(Number)) : 0;
+  if(max){
+    if(max < 10000) return OFFER_TIERS[0];
+    if(max <= 50000) return OFFER_TIERS[1];
+    return OFFER_TIERS[2];
+  }
+  const a = parseFloat(j.area)||0;
+  if(a){
+    if(a < 20) return OFFER_TIERS[0];
+    if(a <= 100) return OFFER_TIERS[1];
+    return OFFER_TIERS[2];
+  }
+  return OFFER_TIERS[1]; // brak budżetu i metrażu — przyjmij średnie
+}
+
 function uid(prefix){ return prefix + Math.random().toString(36).slice(2,9); }
 function today(){ return new Date().toISOString().slice(0,10); }
 
@@ -361,14 +384,25 @@ views.zlecenie = (id) => {
         : !u ? `<p class="muted">Tylko zalogowane firmy mogą składać oferty.</p><a class="btn btn-primary" style="width:100%;margin-top:10px" href="#/logowanie">Zaloguj się jako firma</a>`
         : u.type==='client' ? '<p class="muted">Jesteś zalogowany jako klient — oferty składają firmy.</p>'
         : myOffer ? '<p class="verified">✔ Twoja oferta została wysłana.</p>'
-        : offersLeft(u)<=0 ? `<p class="muted">Wykorzystałeś limit ofert w planie <b>${plan(u.plan).name}</b>.</p><a class="btn btn-accent" style="width:100%;margin-top:10px" href="#/cennik">Zmień plan</a>`
-        : `<form onsubmit="return sendOffer(event,'${j.id}')">
+        : (()=>{
+            const paid = (u.paidJobs||[]).includes(j.id);
+            const tier = jobSize(j);
+            if(offersLeft(u)<=0 && !paid) return `
+              <p class="muted">Wykorzystałeś oferty w planie <b>${plan(u.plan).name}</b>. Wybierz subskrypcję albo kup pojedynczą ofertę dla tego zlecenia.</p>
+              <div class="kv"><span>Wielkość zlecenia</span><b>${tier.label}</b></div>
+              <div class="kv"><span>Cena pojedynczej oferty</span><b>${tier.price} zł netto</b></div>
+              <button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="buySingleOffer('${j.id}')">💳 Kup ofertę za ${tier.price} zł</button>
+              <a class="btn btn-accent" style="width:100%;margin-top:8px" href="#/cennik">Zobacz subskrypcje</a>`;
+            return `
+            ${paid?'<p class="verified" style="margin-bottom:10px">✔ Masz wykupioną ofertę dla tego zlecenia.</p>':''}
+            <form onsubmit="return sendOffer(event,'${j.id}')">
             <div class="field"><label>Cena (np. 12 500 zł)</label><input name="price" required></div>
             <div class="field"><label>Najszybszy termin rozpoczęcia</label><input name="start" type="date" min="${today()}" required></div>
             <div class="field"><label>Czas realizacji (dni)</label><input name="days" type="number" min="1" required></div>
             <div class="field"><label>Wiadomość do klienta</label><textarea name="msg" required placeholder="Przedstaw swoją ofertę…"></textarea></div>
-            <button class="btn btn-primary" style="width:100%">Wyślij ofertę (zużywa 1 z ${offersLeft(u)===Infinity?'∞':offersLeft(u)})</button>
-          </form>`}
+            <button class="btn btn-primary" style="width:100%">${paid?'Wyślij ofertę (wykupiona)':`Wyślij ofertę (zużywa 1 z ${offersLeft(u)===Infinity?'∞':offersLeft(u)})`}</button>
+          </form>`;
+          })()}
       </div>
       <div class="panel">
         <h3 style="margin-top:0">💡 Wskazówka</h3>
@@ -534,7 +568,19 @@ views.cennik = () => {
           : `<a class="btn ${p.featured?'btn-accent':'btn-primary'}" href="#/rejestracja">Załóż konto firmowe</a>`}
       </div>`).join('')}
   </div>
-  <div class="notice" style="margin-top:26px">💳 <b>Demo:</b> płatności są symulowane — kliknięcie „Wybierz plan" od razu aktywuje subskrypcję i resetuje licznik ofert.</div>`;
+  <div class="panel" style="margin-top:30px">
+    <h2>Nie chcesz subskrypcji? Kupuj oferty pojedynczo</h2>
+    <p class="muted" style="margin:8px 0 14px">Po wykorzystaniu 3 darmowych ofert z planu Demo możesz płacić tylko za zlecenia, które naprawdę Cię interesują. Cena zależy od wielkości zlecenia (szacowanej z budżetu klienta):</p>
+    <div class="grid grid-3">
+      ${OFFER_TIERS.map(t=>`<div class="card" style="text-align:center">
+        <div class="plan-name" style="text-transform:capitalize">${t.label} zlecenie</div>
+        <div class="plan-price">${t.price} zł<small> netto/oferta</small></div>
+        <div class="muted">${t.id==='small'?'budżet do 10 000 zł':t.id==='medium'?'budżet 10 000 – 50 000 zł':'budżet powyżej 50 000 zł'}</div>
+      </div>`).join('')}
+    </div>
+    <p class="hint" style="margin-top:12px">Przycisk zakupu pojawia się przy zleceniu, gdy nie masz już dostępnych ofert w planie.</p>
+  </div>
+  <div class="notice" style="margin-top:26px">💳 <b>Demo:</b> płatności są symulowane — kliknięcie „Wybierz plan" lub „Kup ofertę" od razu aktywuje usługę.</div>`;
 };
 
 views['jak-to-dziala'] = () => `
@@ -592,7 +638,7 @@ views.logowanie = () => `
     <div class="notice"><b>Konta demo</b> (hasło: <code>demo</code>):<br>
       👤 klient: <code>anna@example.com</code><br>
       🏢 firma (plan Bez limitu): <code>biuro@budmax.pl</code><br>
-      🏢 firma (plan Start, mały limit): <code>jan@malarz.pl</code></div>
+      🏢 firma (plan Demo, mały limit): <code>jan@malarz.pl</code></div>
     <div class="panel"><form onsubmit="return doLogin(event)">
       <div class="field"><label>E-mail</label><input name="email" type="email" required></div>
       <div class="field"><label>Hasło</label><input name="password" type="password" required></div>
@@ -621,7 +667,7 @@ views.rejestracja = () => `
         <div class="field"><label>Opis firmy</label><textarea name="desc" placeholder="Czym się zajmujecie, doświadczenie, region działania…"></textarea></div>
         <div class="field"><label>Specjalizacje (przytrzymaj Ctrl, by wybrać kilka)</label>
           <select name="cats" multiple size="6">${CATEGORIES.map(c=>`<option value="${c.id}">${c.icon} ${c.name}</option>`).join('')}</select></div>
-        <p class="hint">Nowa firma startuje na darmowym planie <b>Start</b> (3 oferty/mies.) i poziomie renomy <b>Nowa</b>.</p>
+        <p class="hint">Nowa firma startuje na darmowym planie <b>Demo</b> — 3 oferty na start. Potem subskrypcja albo zakup pojedynczych ofert (50–200 zł zależnie od wielkości zlecenia).</p>
       </div>
       <button class="btn btn-primary" style="width:100%">Załóż konto</button>
     </form></div>
@@ -764,13 +810,26 @@ function addJob(e){
 function sendOffer(e, jobId){
   e.preventDefault();
   const u = me(); if(!u || u.type!=='company') return false;
-  if(offersLeft(u)<=0){ toast('❌ Brak dostępnych ofert w Twoim planie'); return false; }
+  const paid = (u.paidJobs||[]).includes(jobId);
+  if(!paid && offersLeft(u)<=0){ toast('❌ Brak dostępnych ofert — kup pojedynczą ofertę lub subskrypcję'); return false; }
   const f = new FormData(e.target);
   const j = DB.jobs.find(x=>x.id===jobId);
   j.offers.push({companyId:u.id, price:f.get('price'), start:f.get('start'), days:+f.get('days'), msg:f.get('msg'), date:today(), accepted:false});
-  const c = company(u.id); c.offersUsed = (c.offersUsed||0)+1;
+  const c = company(u.id);
+  if(paid) c.paidJobs = c.paidJobs.filter(x=>x!==jobId);
+  else c.offersUsed = (c.offersUsed||0)+1;
   save(); render(); renderTopbar(); toast('Oferta wysłana ✔');
   return false;
+}
+
+function buySingleOffer(jobId){
+  const u = me(); if(!u || u.type!=='company') return;
+  const j = DB.jobs.find(x=>x.id===jobId); if(!j) return;
+  const c = company(u.id);
+  c.paidJobs = c.paidJobs || [];
+  if(!c.paidJobs.includes(jobId)) c.paidJobs.push(jobId);
+  save(); render();
+  toast(`✔ Wykupiono ofertę za ${jobSize(j).price} zł (płatność symulowana)`);
 }
 
 function sendChat(e, jobId){

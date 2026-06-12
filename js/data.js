@@ -20,7 +20,7 @@ const CATEGORIES = [
 ];
 
 const PLANS = [
-  {id:'start', name:'Start', price:0, offers:3, features:['3 oferty miesięcznie','Profil firmy z ocenami','Dostęp do wszystkich zleceń (podgląd)','Podstawowe statystyki']},
+  {id:'start', name:'Demo', price:0, offers:3, features:['3 oferty na start (jednorazowo)','Profil firmy z ocenami','Dostęp do wszystkich zleceń (podgląd)','Po wykorzystaniu: subskrypcja lub zakup pojedynczych ofert']},
   {id:'standard', name:'Standard', price:149, offers:15, features:['15 ofert miesięcznie','Profil firmy z ocenami','Pełne dane kontaktowe klientów','Odznaka "Zweryfikowana firma"','Statystyki skuteczności']},
   {id:'pro', name:'PRO', price:349, offers:50, featured:true, features:['50 ofert miesięcznie','Wyróżnienie ofert (na górze listy)','Priorytetowe powiadomienia o zleceniach','Odznaka "Zweryfikowana firma"','Pełne raporty i analityka','Opiekun konta']},
   {id:'unlimited', name:'Bez limitu', price:699, offers:Infinity, features:['Nielimitowane oferty','Wszystko z planu PRO','Promowanie profilu w rankingu','Dedykowane leady z regionu','API / integracje']},
