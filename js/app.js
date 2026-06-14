@@ -1,23 +1,9 @@
-// ===================== WARSTWA DANYCH (localStorage) =====================
-const DB_KEY = 'fachowiecpro_db_v3';
-localStorage.removeItem('fachowiecpro_db_v1'); // porządek po starych wersjach bazy
-localStorage.removeItem('fachowiecpro_db_v2');
+// ===================== WARSTWA DANYCH =====================
+// Dane mieszkają w Supabase (js/db.js); DB to lokalny cache odświeżany po każdej mutacji.
+const DB = { companies:[], clients:[], jobs:[], reviews:[], session:null };
 
-function loadDB(){
-  const raw = localStorage.getItem(DB_KEY);
-  if(raw){ try{ return JSON.parse(raw); }catch(e){} }
-  const db = {
-    companies: SEED_COMPANIES,
-    clients: SEED_CLIENTS,
-    jobs: SEED_JOBS,
-    reviews: SEED_REVIEWS,
-    session: null, // {type:'client'|'company', id}
-  };
-  localStorage.setItem(DB_KEY, JSON.stringify(db));
-  return db;
-}
-let DB = loadDB();
-function save(){ localStorage.setItem(DB_KEY, JSON.stringify(DB)); }
+// odśwież cache + przerysuj wszystko (wywoływane po każdej mutacji)
+async function sync(){ await Data.refresh(); renderTopbar(); render(); }
 
 const $ = sel => document.querySelector(sel);
 const cat = id => CATEGORIES.find(c=>c.id===id);
@@ -185,7 +171,11 @@ function renderTopbar(){
       <button class="btn btn-ghost btn-sm" onclick="logout()">Wyloguj</button>`;
   }
 }
-function logout(){ DB.session=null; save(); renderTopbar(); location.hash='#/'; toast('Wylogowano'); }
+async function logout(){
+  await Data.logout();
+  await sync();
+  location.hash='#/'; toast('Wylogowano');
+}
 
 // ===================== WIDOKI =====================
 const views = {};
@@ -205,7 +195,7 @@ views.home = () => {
       <div><b>${DB.jobs.length}</b><span>zleceń w serwisie</span></div>
       <div><b>${DB.companies.length}</b><span>firm wykonawczych</span></div>
       <div><b>${DB.reviews.length}</b><span>zweryfikowanych opinii</span></div>
-      <div><b>${Math.round(DB.reviews.reduce((s,r)=>s+r.stars,0)/DB.reviews.length*10)/10} ★</b><span>średnia ocena prac</span></div>
+      <div><b>${DB.reviews.length ? Math.round(DB.reviews.reduce((s,r)=>s+r.stars,0)/DB.reviews.length*10)/10+' ★' : '—'}</b><span>średnia ocena prac</span></div>
     </div>
   </div>
 
@@ -302,7 +292,7 @@ views.zlecenie = (id) => {
   const myOffer = isCompany && j.offers.find(o=>o.companyId===u.id);
   const sortedOffers = [...j.offers].sort((a,b)=>{
     // wyróżnienie: plany pro/unlimited na górze, potem renoma
-    const boost = o => ['pro','unlimited'].includes(company(o.companyId).plan)?100000:0;
+    const boost = o => ['pro','unlimited'].includes(company(o.companyId)?.plan)?100000:0;
     return (boost(b)+repScore(b.companyId)) - (boost(a)+repScore(a.companyId));
   });
 
@@ -331,8 +321,8 @@ views.zlecenie = (id) => {
         <h2>Oferty firm (${j.offers.length})</h2>
         ${sortedOffers.length ? sortedOffers.map((o,idx)=>{
           const f = company(o.companyId);
-          const featured = ['pro','unlimited'].includes(f.plan);
-          const canSee = owner || (u && u.type==='company' && u.id===o.companyId);
+          const canSee = (owner || (u && u.type==='company' && u.id===o.companyId)) && f;
+          const featured = f && ['pro','unlimited'].includes(f.plan);
           if(!canSee) return `<div class="offer">
             <div class="offer-head">
               <div><b>Oferta #${idx+1}</b><div class="muted" style="font-size:.8rem">szczegóły firmy widoczne tylko dla zleceniodawcy</div></div>
@@ -610,7 +600,7 @@ views.dodaj = () => {
   <div class="form-narrow">
     <h1 style="margin-bottom:6px">Dodaj zlecenie</h1>
     <p class="muted" style="margin-bottom:20px">Bezpłatnie. Firmy prześlą Ci oferty z ceną i terminem.</p>
-    ${!u ? `<div class="notice">Nie jesteś zalogowany — zlecenie zostanie dodane na <b>konto demo klienta</b> (Anna Wiśniewska). Możesz też się <a href="#/logowanie">zalogować</a>.</div>`:''}
+    ${!u ? `<div class="notice">Aby dodać zlecenie, <a href="#/logowanie">zaloguj się</a> lub <a href="#/rejestracja">załóż darmowe konto klienta</a>.</div>`:''}
     <div class="panel"><form onsubmit="return addJob(event)">
       <div class="field"><label>Tytuł zlecenia</label><input name="title" required placeholder="np. Remont łazienki 5 m²"></div>
       <div class="field"><label>Kategoria</label><select name="cat" required>${CATEGORIES.map(c=>`<option value="${c.id}">${c.icon} ${c.name}</option>`).join('')}</select></div>
@@ -635,10 +625,6 @@ views.dodaj = () => {
 views.logowanie = () => `
   <div class="form-narrow">
     <h1 style="margin-bottom:20px">Logowanie</h1>
-    <div class="notice"><b>Konta demo</b> (hasło: <code>demo</code>):<br>
-      👤 klient: <code>anna@example.com</code><br>
-      🏢 firma (plan Bez limitu): <code>biuro@budmax.pl</code><br>
-      🏢 firma (plan Demo, mały limit): <code>jan@malarz.pl</code></div>
     <div class="panel"><form onsubmit="return doLogin(event)">
       <div class="field"><label>E-mail</label><input name="email" type="email" required></div>
       <div class="field"><label>Hasło</label><input name="password" type="password" required></div>
@@ -658,7 +644,7 @@ views.rejestracja = () => `
         </select></div>
       <div class="field"><label>Nazwa firmy / imię i nazwisko</label><input name="name" required></div>
       <div class="field"><label>E-mail</label><input name="email" type="email" required></div>
-      <div class="field"><label>Hasło</label><input name="password" type="password" required></div>
+      <div class="field"><label>Hasło (min. 6 znaków)</label><input name="password" type="password" minlength="6" required></div>
       <div class="field"><label>Miejscowość</label><input name="city" required></div>
       <div id="firmFields" style="display:none">
         <div class="field"><label>Adres firmy</label><input name="address" placeholder="ul. Przykładowa 1, 00-001 Warszawa"></div>
@@ -738,40 +724,41 @@ views._panelCompany = (u) => {
 views.notfound = () => `<div class="empty"><h2>404</h2><p>Nie znaleziono strony.</p><a href="#/">Wróć na stronę główną</a></div>`;
 
 // ===================== AKCJE =====================
-function doLogin(e){
+async function doLogin(e){
   e.preventDefault();
   const f = new FormData(e.target);
-  const email = f.get('email').trim().toLowerCase(), pass = f.get('password');
-  const c = DB.companies.find(x=>x.email===email && x.password===pass);
-  const u = DB.clients.find(x=>x.email===email && x.password===pass);
-  if(c){ DB.session={type:'company',id:c.id}; }
-  else if(u){ DB.session={type:'client',id:u.id}; }
-  else { toast('❌ Błędny e-mail lub hasło'); return false; }
-  save(); renderTopbar(); location.hash='#/panel'; toast('Zalogowano ✔');
+  try{
+    await Data.login(f.get('email').trim().toLowerCase(), f.get('password'));
+  }catch(err){ toast('❌ Błędny e-mail lub hasło'); return false; }
+  renderTopbar(); location.hash='#/panel'; toast('Zalogowano ✔');
   return false;
 }
 
-function doRegister(e){
+async function doRegister(e){
   e.preventDefault();
   const f = new FormData(e.target);
   const email = f.get('email').trim().toLowerCase();
-  if(DB.companies.some(x=>x.email===email)||DB.clients.some(x=>x.email===email)){ toast('❌ Ten e-mail jest już zajęty'); return false; }
-  if(f.get('type')==='company'){
+  const type = f.get('type');
+  let row;
+  if(type==='company'){
     const address=(f.get('address')||'').trim(), nip=(f.get('nip')||'').trim(), phone=(f.get('phone')||'').trim();
     if(!address || !nip || !phone){ toast('❌ Uzupełnij adres, NIP i numer kontaktowy firmy'); return false; }
     if(!/^\d{10}$/.test(nip.replace(/[\s-]/g,''))){ toast('❌ NIP musi mieć 10 cyfr'); return false; }
-    const id = uid('c');
-    DB.companies.push({id, name:f.get('name'), city:f.get('city'), email, password:f.get('password'),
-      address, nip, phone,
+    row = {name:f.get('name'), city:f.get('city'), address, nip, phone,
       cats:[...e.target.querySelector('[name=cats]').selectedOptions].map(o=>o.value),
-      desc:f.get('desc')||'', plan:'start', verified:false, joined:today(), offersUsed:0});
-    DB.session={type:'company',id};
+      "desc":f.get('desc')||''};
   } else {
-    const id = uid('u');
-    DB.clients.push({id, name:f.get('name'), city:f.get('city'), email, password:f.get('password')});
-    DB.session={type:'client',id};
+    row = {name:f.get('name'), city:f.get('city')};
   }
-  save(); renderTopbar(); location.hash='#/panel'; toast('Konto utworzone ✔');
+  try{
+    const res = await Data.register(type, email, f.get('password'), row);
+    if(res.needsConfirm){
+      toast('📧 Sprawdź skrzynkę i potwierdź e-mail, potem zaloguj się');
+      location.hash='#/logowanie';
+      return false;
+    }
+  }catch(err){ toast('❌ '+err.message); return false; }
+  renderTopbar(); location.hash='#/panel'; toast('Konto utworzone ✔');
   return false;
 }
 
@@ -791,48 +778,51 @@ function handleJobPhotos(input){
   });
 }
 
-function addJob(e){
+async function addJob(e){
   e.preventDefault();
-  let u = me();
-  if(!u){ DB.session={type:'client',id:'u1'}; u = me(); } // demo: auto-login klienta
+  const u = me();
+  if(!u || u.type!=='client'){ toast('❌ Zaloguj się jako klient, aby dodać zlecenie'); location.hash='#/logowanie'; return false; }
   const f = new FormData(e.target);
-  const j = {id:uid('j'), title:f.get('title'), cat:f.get('cat'), city:f.get('city'),
-    budget:(f.get('budget')||'').trim() || 'do uzgodnienia',
-    area:f.get('area')||'', length:f.get('length')||'', deadline:f.get('deadline')||'',
-    photos:pendingPhotos.slice(),
-    desc:f.get('desc'), urgent:!!f.get('urgent'), clientId:u.id, status:'open', created:today(), offers:[]};
-  pendingPhotos = [];
-  DB.jobs.unshift(j); save(); renderTopbar();
-  location.hash = '#/zlecenie/'+j.id; toast('Zlecenie opublikowane ✔');
+  const btn = e.target.querySelector('button'); btn.disabled = true; btn.textContent = 'Publikowanie…';
+  try{
+    const photoUrls = await Data.uploadPhotos(pendingPhotos);
+    const id = await Data.addJob({
+      title:f.get('title'), cat:f.get('cat'), city:f.get('city'),
+      budget:(f.get('budget')||'').trim(),
+      area:f.get('area')||'', length:f.get('length')||'', deadline:f.get('deadline')||'',
+      desc:f.get('desc'), urgent:!!f.get('urgent'),
+    }, photoUrls);
+    pendingPhotos = [];
+    await sync();
+    location.hash = '#/zlecenie/'+id; toast('Zlecenie opublikowane ✔');
+  }catch(err){ toast('❌ '+err.message); btn.disabled = false; btn.textContent = 'Opublikuj zlecenie'; }
   return false;
 }
 
-function sendOffer(e, jobId){
+async function sendOffer(e, jobId){
   e.preventDefault();
   const u = me(); if(!u || u.type!=='company') return false;
   const paid = (u.paidJobs||[]).includes(jobId);
   if(!paid && offersLeft(u)<=0){ toast('❌ Brak dostępnych ofert — kup pojedynczą ofertę lub subskrypcję'); return false; }
   const f = new FormData(e.target);
-  const j = DB.jobs.find(x=>x.id===jobId);
-  j.offers.push({companyId:u.id, price:f.get('price'), start:f.get('start'), days:+f.get('days'), msg:f.get('msg'), date:today(), accepted:false});
-  const c = company(u.id);
-  if(paid) c.paidJobs = c.paidJobs.filter(x=>x!==jobId);
-  else c.offersUsed = (c.offersUsed||0)+1;
-  save(); render(); renderTopbar(); toast('Oferta wysłana ✔');
+  try{
+    await Data.sendOffer(jobId, {price:f.get('price'), start:f.get('start'), days:+f.get('days'), msg:f.get('msg')}, paid);
+    await sync(); toast('Oferta wysłana ✔');
+  }catch(err){ toast('❌ '+err.message); }
   return false;
 }
 
-function buySingleOffer(jobId){
+async function buySingleOffer(jobId){
   const u = me(); if(!u || u.type!=='company') return;
   const j = DB.jobs.find(x=>x.id===jobId); if(!j) return;
-  const c = company(u.id);
-  c.paidJobs = c.paidJobs || [];
-  if(!c.paidJobs.includes(jobId)) c.paidJobs.push(jobId);
-  save(); render();
-  toast(`✔ Wykupiono ofertę za ${jobSize(j).price} zł (płatność symulowana)`);
+  try{
+    await Data.buySingleOffer(jobId);
+    await sync();
+    toast(`✔ Wykupiono ofertę za ${jobSize(j).price} zł (płatność symulowana)`);
+  }catch(err){ toast('❌ '+err.message); }
 }
 
-function sendChat(e, jobId){
+async function sendChat(e, jobId){
   e.preventDefault();
   const u = me(); if(!u) return false;
   const j = DB.jobs.find(x=>x.id===jobId); if(!j) return false;
@@ -840,31 +830,33 @@ function sendChat(e, jobId){
   if(!allowed) return false;
   const text = new FormData(e.target).get('text').trim();
   if(!text) return false;
-  j.messages = j.messages || [];
-  const now = new Date();
-  j.messages.push({from:u.type, name:u.name, text, ts:today()+' '+now.toTimeString().slice(0,5)});
-  save(); render();
-  const box = document.getElementById('chatBox');
-  if(box) box.scrollTop = box.scrollHeight;
+  try{
+    await Data.sendChat(jobId, text);
+    await sync();
+    const box = document.getElementById('chatBox');
+    if(box) box.scrollTop = box.scrollHeight;
+  }catch(err){ toast('❌ '+err.message); }
   return false;
 }
 
-function acceptOffer(jobId, companyId){
-  const j = DB.jobs.find(x=>x.id===jobId);
-  j.status='in_progress'; j.acceptedCompany=companyId;
-  j.offers.forEach(o=>o.accepted = o.companyId===companyId);
-  save(); render(); toast('Wybrano wykonawcę: '+company(companyId).name+' ✔');
+async function acceptOffer(jobId, companyId){
+  try{
+    await Data.acceptOffer(jobId, companyId);
+    await sync();
+    toast('Wybrano wykonawcę: '+(company(companyId)?.name||'')+' ✔');
+  }catch(err){ toast('❌ '+err.message); }
 }
 
-function completeJob(jobId){
-  const j = DB.jobs.find(x=>x.id===jobId);
-  j.status='completed'; save(); render(); toast('Zlecenie zakończone — wystaw ocenę ⭐');
+async function completeJob(jobId){
+  try{
+    await Data.completeJob(jobId);
+    await sync(); toast('Zlecenie zakończone — wystaw ocenę ⭐');
+  }catch(err){ toast('❌ '+err.message); }
 }
 
-function submitReview(e, jobId){
+async function submitReview(e, jobId){
   e.preventDefault();
   const j = DB.jobs.find(x=>x.id===jobId);
-  const u = me();
   const get = name => {
     const el = e.target.querySelector(`.star-input[data-name="${name}"]`);
     return +(el?.dataset.value||0);
@@ -872,20 +864,22 @@ function submitReview(e, jobId){
   const stars = get('stars');
   if(!stars){ toast('❌ Zaznacz ocenę ogólną (gwiazdki)'); return false; }
   const f = new FormData(e.target);
-  DB.reviews.push({id:uid('r'), companyId:j.acceptedCompany, jobId:j.id, clientId:u.id, clientName:u.name,
-    date:today(), stars, crit:{jakosc:get('jakosc')||stars, terminowosc:get('terminowosc')||stars, kontakt:get('kontakt')||stars, cena:get('cena')||stars},
-    text:f.get('text'), recommend:!!f.get('recommend')});
-  j.reviewed = true;
-  save(); render(); toast('Dziękujemy! Ocena doliczona do renomy firmy ✔');
+  try{
+    await Data.submitReview(j, stars,
+      {jakosc:get('jakosc')||stars, terminowosc:get('terminowosc')||stars, kontakt:get('kontakt')||stars, cena:get('cena')||stars},
+      f.get('text'), !!f.get('recommend'));
+    await sync(); toast('Dziękujemy! Ocena doliczona do renomy firmy ✔');
+  }catch(err){ toast('❌ '+err.message); }
   return false;
 }
 
-function buyPlan(planId){
+async function buyPlan(planId){
   const u = me(); if(!u || u.type!=='company') return;
-  const c = company(u.id);
-  c.plan = planId; c.offersUsed = 0;
-  save(); render(); renderTopbar();
-  toast('✔ Aktywowano plan '+plan(planId).name+' (płatność symulowana)');
+  try{
+    await Data.buyPlan(planId);
+    await sync();
+    toast('✔ Aktywowano plan '+plan(planId).name+' (płatność symulowana)');
+  }catch(err){ toast('❌ '+err.message); }
 }
 
 // obsługa klikalnych gwiazdek w formularzach
@@ -906,5 +900,23 @@ function render(){
   window.scrollTo(0,0);
 }
 window.addEventListener('hashchange', render);
-renderTopbar();
-render();
+
+async function init(){
+  if(!Data.ready){
+    $('#app').innerHTML = `<div class="empty"><h2>⚙️ Brak konfiguracji bazy</h2>
+      <p>Uzupełnij <code>SUPABASE_URL</code> i <code>SUPABASE_ANON_KEY</code> w pliku <b>js/config.js</b>.</p></div>`;
+    return;
+  }
+  $('#app').innerHTML = '<div class="empty"><h2>⏳ Ładowanie…</h2></div>';
+  try{
+    await Data.refresh();
+    await Data.initSession();
+  }catch(err){
+    $('#app').innerHTML = `<div class="empty"><h2>❌ Błąd połączenia z bazą</h2><p>${esc(err.message)}</p>
+      <p class="muted">Sprawdź, czy schemat (supabase/schema.sql) został uruchomiony w SQL Editorze.</p></div>`;
+    return;
+  }
+  renderTopbar();
+  render();
+}
+init();

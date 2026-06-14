@@ -34,3 +34,17 @@ localStorage.removeItem('fachowiecpro_db_v1'); location.reload()
 - `js/data.js` — dane przykładowe (firmy, zlecenia, opinie, plany, kategorie)
 - `js/app.js` — logika: router, renoma, oferty, oceny, subskrypcje
 - `css/style.css` — style
+
+## Backend: Supabase
+
+Dane (konta, zlecenia, oferty, czat, zdjęcia) trzymane są w Supabase.
+
+### Konfiguracja od zera
+1. Załóż darmowe konto na https://supabase.com i utwórz projekt (region najlepiej `eu-central-1`).
+2. W panelu projektu: **SQL Editor → New query** → wklej całą zawartość `supabase/schema.sql` → **Run**.
+3. **Project Settings → API**: skopiuj `Project URL` i `anon public` key do `js/config.js`.
+4. (Zalecane na start) **Authentication → Sign In / Up → Email**: wyłącz "Confirm email",
+   żeby rejestracja działała bez klikania w linki aktywacyjne.
+
+Frontend pozostaje statyczny (GitHub Pages) — z bazą łączy się bezpośrednio z przeglądarki,
+a o bezpieczeństwo dba Row Level Security (patrz polityki w `schema.sql`).
