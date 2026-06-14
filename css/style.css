@@ -180,7 +180,14 @@ textarea{min-height:110px;resize:vertical}
 .footer p{font-size:.85rem;max-width:300px;margin-top:8px}
 .footer-bottom{border-top:1px solid #1e3250;padding:16px 18px;font-size:.8rem;text-align:center}
 
+/* promo */
+.promo-pill{display:inline-block;background:#fff4e0;border:1px solid #f3d49a;color:#8a5a08;font-size:.85rem;font-weight:600;padding:8px 16px;border-radius:24px}
+.hero .promo-pill{margin-top:16px}
+
 /* ---------- BLOG ---------- */
+.post-card{text-decoration:none;color:inherit}
+.post-card:hover{box-shadow:0 8px 22px rgba(20,40,80,.10);transform:translateY(-3px);border-color:#cdd9ec}
+.post-card h2{color:var(--text)}
 .blog-hero{padding:34px 0 8px}
 .blog-hero h1{font-size:2rem;margin-bottom:6px}
 .blog-hero p{color:var(--muted);max-width:640px}

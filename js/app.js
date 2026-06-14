@@ -69,7 +69,18 @@ function statusBadge(j){
   if(j.status==='in_progress') return `<span class="badge badge-progress">W realizacji</span>`;
   return `<span class="badge badge-done">Zakończone</span>`;
 }
+// ===== TRYB PROMOCYJNY =====
+// Na czas promocji wszystko jest darmowe: brak limitów ofert, ukryty cennik,
+// brak płatności. Aby przywrócić model płatny — ustaw FREE_PROMO = false.
+const FREE_PROMO = true;
+
+// Wykonawca bez NIP = osoba prywatna (fachowiec), z NIP = firma.
+function isIndividual(c){ return !c || !String(c.nip||'').trim(); }
+function workerLabel(c){ return isIndividual(c) ? 'Fachowiec' : 'Firma'; }
+function workerIcon(c){ return isIndividual(c) ? '👷' : '🏢'; }
+
 function offersLeft(c){
+  if(FREE_PROMO) return Infinity;
   const p = plan(c.plan);
   if(p.offers===Infinity) return Infinity;
   return Math.max(0, p.offers - (c.offersUsed||0));
@@ -134,7 +145,7 @@ function companyCard(c){
     <div class="company-stats">
       <span>Ukończone: <b>${completedJobs(c.id)}</b></span>
       <span>Polecenia: <b>${recommendPct(c.id)}%</b></span>
-      <span>Plan: <b>${plan(c.plan).name}</b></span>
+      <span>${workerIcon(c)} <b>${workerLabel(c)}</b></span>
     </div>
   </div>`;
 }
@@ -165,9 +176,8 @@ function renderTopbar(){
       <a class="btn btn-ghost btn-sm" href="#/panel">Panel</a>
       <button class="btn btn-ghost btn-sm" onclick="logout()">Wyloguj</button>`;
   } else {
-    const left = offersLeft(u);
-    el.innerHTML = `<span class="userchip">🏢 <b>${esc(u.name)}</b> · oferty: ${left===Infinity?'∞':left}</span>
-      <a class="btn btn-ghost btn-sm" href="#/panel">Panel firmy</a>
+    el.innerHTML = `<span class="userchip">${workerIcon(u)} <b>${esc(u.name)}</b></span>
+      <a class="btn btn-ghost btn-sm" href="#/panel">Mój panel</a>
       <button class="btn btn-ghost btn-sm" onclick="logout()">Wyloguj</button>`;
   }
 }
@@ -189,11 +199,12 @@ views.home = () => {
     <p>FachowiecPRO to giełda zleceń budowlanych, na której liczy się <b>renoma</b> — punkty, oceny i opinie z prawdziwych, ukończonych prac.</p>
     <div class="hero-actions">
       <a class="btn btn-accent" href="#/dodaj">Dodaj zlecenie — za darmo</a>
-      <a class="btn btn-ghost" href="#/cennik">Jestem wykonawcą</a>
+      <a class="btn btn-ghost" href="#/rejestracja">Jestem wykonawcą</a>
     </div>
+    <div class="promo-pill">🎉 Promocja startowa — dla wykonawców <b>wszystko za darmo</b>, bez limitów i opłat</div>
     <div class="hero-stats">
       <div><b>${DB.jobs.length}</b><span>zleceń w serwisie</span></div>
-      <div><b>${DB.companies.length}</b><span>firm wykonawczych</span></div>
+      <div><b>${DB.companies.length}</b><span>wykonawców</span></div>
       <div><b>${DB.reviews.length}</b><span>zweryfikowanych opinii</span></div>
       <div><b>${DB.reviews.length ? Math.round(DB.reviews.reduce((s,r)=>s+r.stars,0)/DB.reviews.length*10)/10+' ★' : '—'}</b><span>średnia ocena prac</span></div>
     </div>
@@ -217,7 +228,7 @@ views.home = () => {
   </div>
 
   <div class="section">
-    <div class="section-head"><h2>Firmy z najwyższą renomą</h2><a href="#/ranking">Pełny ranking →</a></div>
+    <div class="section-head"><h2>Wykonawcy z najwyższą renomą</h2><a href="#/ranking">Pełny ranking →</a></div>
     <div class="grid grid-3">${topCompanies.map(companyCard).join('')}</div>
   </div>
 
@@ -225,7 +236,7 @@ views.home = () => {
     <div class="section-head"><h2>Jak to działa?</h2></div>
     <div class="grid grid-3">
       <div class="card"><h3>1. Klient dodaje zlecenie</h3><p class="muted">Opisujesz pracę do wykonania, budżet i lokalizację. Całkowicie za darmo.</p></div>
-      <div class="card"><h3>2. Firmy składają oferty</h3><p class="muted">Wykonawcy z aktywną subskrypcją wysyłają oferty z ceną i terminem. Ty porównujesz ich renomę i opinie.</p></div>
+      <div class="card"><h3>2. Wykonawcy składają oferty</h3><p class="muted">Firmy i fachowcy wysyłają oferty z ceną i terminem. Ty porównujesz ich renomę i opinie.</p></div>
       <div class="card"><h3>3. Ocena buduje renomę</h3><p class="muted">Po zakończeniu pracy wystawiasz ocenę. Firma zdobywa punkty renomy — najlepsi pną się w rankingu.</p></div>
     </div>
   </div>`;
@@ -254,7 +265,7 @@ views.kategoria = (catId) => {
     <div class="section"><div class="section-head"><h2>Zlecenia (${jobs.length})</h2></div>
       ${jobs.length? `<div class="grid grid-3">${jobs.map(jobCard).join('')}</div>` : '<div class="empty">Brak zleceń w tej kategorii. <a href="#/dodaj">Dodaj pierwsze!</a></div>'}
     </div>
-    <div class="section"><div class="section-head"><h2>Polecane firmy w tej kategorii</h2></div>
+    <div class="section"><div class="section-head"><h2>Polecani wykonawcy w tej kategorii</h2></div>
       ${firms.length? `<div class="grid grid-3">${firms.map(companyCard).join('')}</div>` : '<div class="empty">Brak firm w tej kategorii.</div>'}
     </div>`;
 };
@@ -318,7 +329,7 @@ views.zlecenie = (id) => {
       </div>
 
       <div class="panel">
-        <h2>Oferty firm (${j.offers.length})</h2>
+        <h2>Oferty (${j.offers.length})</h2>
         ${sortedOffers.length ? sortedOffers.map((o,idx)=>{
           const f = company(o.companyId);
           const canSee = (owner || (u && u.type==='company' && u.id===o.companyId)) && f;
@@ -371,28 +382,18 @@ views.zlecenie = (id) => {
       <div class="panel">
         <h2>Złóż ofertę</h2>
         ${j.status!=='open' ? '<p class="muted">Zlecenie nie przyjmuje już ofert.</p>'
-        : !u ? `<p class="muted">Tylko zalogowane firmy mogą składać oferty.</p><a class="btn btn-primary" style="width:100%;margin-top:10px" href="#/logowanie">Zaloguj się jako firma</a>`
-        : u.type==='client' ? '<p class="muted">Jesteś zalogowany jako klient — oferty składają firmy.</p>'
+        : !u ? `<p class="muted">Tylko zalogowani wykonawcy mogą składać oferty.</p><a class="btn btn-primary" style="width:100%;margin-top:10px" href="#/logowanie">Zaloguj się jako wykonawca</a>`
+        : u.type==='client' ? '<p class="muted">Jesteś zalogowany jako klient — oferty składają wykonawcy.</p>'
         : myOffer ? '<p class="verified">✔ Twoja oferta została wysłana.</p>'
-        : (()=>{
-            const paid = (u.paidJobs||[]).includes(j.id);
-            const tier = jobSize(j);
-            if(offersLeft(u)<=0 && !paid) return `
-              <p class="muted">Wykorzystałeś oferty w planie <b>${plan(u.plan).name}</b>. Wybierz subskrypcję albo kup pojedynczą ofertę dla tego zlecenia.</p>
-              <div class="kv"><span>Wielkość zlecenia</span><b>${tier.label}</b></div>
-              <div class="kv"><span>Cena pojedynczej oferty</span><b>${tier.price} zł netto</b></div>
-              <button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="buySingleOffer('${j.id}')">💳 Kup ofertę za ${tier.price} zł</button>
-              <a class="btn btn-accent" style="width:100%;margin-top:8px" href="#/cennik">Zobacz subskrypcje</a>`;
-            return `
-            ${paid?'<p class="verified" style="margin-bottom:10px">✔ Masz wykupioną ofertę dla tego zlecenia.</p>':''}
+        : `
+            <p class="muted" style="margin-bottom:10px">🎉 W ramach promocji składanie ofert jest <b>darmowe i bez limitów</b>.</p>
             <form onsubmit="return sendOffer(event,'${j.id}')">
             <div class="field"><label>Cena (np. 12 500 zł)</label><input name="price" required></div>
             <div class="field"><label>Najszybszy termin rozpoczęcia</label><input name="start" type="date" min="${today()}" required></div>
             <div class="field"><label>Czas realizacji (dni)</label><input name="days" type="number" min="1" required></div>
             <div class="field"><label>Wiadomość do klienta</label><textarea name="msg" required placeholder="Przedstaw swoją ofertę…"></textarea></div>
-            <button class="btn btn-primary" style="width:100%">${paid?'Wyślij ofertę (wykupiona)':`Wyślij ofertę (zużywa 1 z ${offersLeft(u)===Infinity?'∞':offersLeft(u)})`}</button>
-          </form>`;
-          })()}
+            <button class="btn btn-primary" style="width:100%">Wyślij ofertę</button>
+          </form>`}
       </div>
       <div class="panel">
         <h3 style="margin-top:0">💡 Wskazówka</h3>
@@ -407,7 +408,7 @@ views._contactPanel = (j, owner) => {
     const f = company(j.acceptedCompany);
     return `<div class="panel">
       <h2>📇 Dane kontaktowe wykonawcy</h2>
-      <div class="kv"><span>Firma</span><b><a href="#/firma/${f.id}">${esc(f.name)}</a> ${f.verified?'<span class="verified">✔</span>':''}</b></div>
+      <div class="kv"><span>${workerLabel(f)}</span><b><a href="#/firma/${f.id}">${esc(f.name)}</a> ${f.verified?'<span class="verified">✔</span>':''}</b></div>
       ${f.address?`<div class="kv"><span>Adres</span><b>${esc(f.address)}</b></div>`:''}
       <div class="kv"><span>Miejscowość</span><b>📍 ${esc(f.city)}</b></div>
       ${f.phone?`<div class="kv"><span>Telefon</span><b><a href="tel:${esc(f.phone)}">📞 ${esc(f.phone)}</a></b></div>`:''}
@@ -480,7 +481,7 @@ views.firma = (id) => {
           <div class="avatar" style="width:64px;height:64px;font-size:1.6rem">${esc(c.name[0])}</div>
           <div>
             <h2 style="margin:0">${esc(c.name)} ${c.verified?'<span class="verified">✔ Zweryfikowana</span>':''}</h2>
-            <div class="muted">📍 ${esc(c.city)} · w serwisie od ${c.joined} · plan <b>${plan(c.plan).name}</b></div>
+            <div class="muted">📍 ${esc(c.city)} · w serwisie od ${c.joined} · ${workerIcon(c)} <b>${workerLabel(c)}</b></div>
             <div style="margin-top:6px">${repBadge(c.id)}</div>
           </div>
         </div>
@@ -521,7 +522,7 @@ views.firma = (id) => {
 views.ranking = () => {
   const sorted = [...DB.companies].sort((a,b)=>repScore(b.id)-repScore(a.id));
   return `
-  <h1>Ranking firm</h1>
+  <h1>Ranking wykonawców</h1>
   <p class="muted" style="margin-bottom:18px">Pozycja w rankingu wynika wyłącznie z punktów renomy — ocen klientów, poleceń i ukończonych zleceń. <a href="#/jak-to-dziala">Zasady punktacji →</a></p>
   <table class="ranktable">
     <thead><tr><th>#</th><th>Firma</th><th>Renoma</th><th>Ocena</th><th>Ukończone</th><th>Poleca</th><th></th></tr></thead>
@@ -539,39 +540,20 @@ views.ranking = () => {
   </table>`;
 };
 
-views.cennik = () => {
-  const u = me();
-  return `
-  <h1 style="text-align:center">Plany subskrypcji dla firm</h1>
-  <p class="muted" style="text-align:center;margin-bottom:30px">Płacisz za możliwość składania ofert — dodawanie zleceń przez klientów jest zawsze darmowe.</p>
-  <div class="grid grid-4">
-    ${PLANS.map(p=>`
-      <div class="card price-card ${p.featured?'featured':''}">
-        ${p.featured?'<div class="ribbon">NAJPOPULARNIEJSZY</div>':''}
-        <div class="plan-name">${p.name}</div>
-        <div class="plan-price">${p.price===0?'0 zł':p.price+' zł'}<small>/mies. netto</small></div>
-        <div class="muted">${p.offers===Infinity?'oferty bez limitu':p.offers+' ofert miesięcznie'}</div>
-        <ul>${p.features.map(f=>`<li>${f}</li>`).join('')}</ul>
-        ${u && u.type==='company'
-          ? (u.plan===p.id ? '<button class="btn btn-outline" disabled>Twój obecny plan</button>'
-             : `<button class="btn ${p.featured?'btn-accent':'btn-primary'}" onclick="buyPlan('${p.id}')">Wybierz plan</button>`)
-          : `<a class="btn ${p.featured?'btn-accent':'btn-primary'}" href="#/rejestracja">Załóż konto firmowe</a>`}
-      </div>`).join('')}
-  </div>
-  <div class="panel" style="margin-top:30px">
-    <h2>Nie chcesz subskrypcji? Kupuj oferty pojedynczo</h2>
-    <p class="muted" style="margin:8px 0 14px">Po wykorzystaniu 3 darmowych ofert z planu Demo możesz płacić tylko za zlecenia, które naprawdę Cię interesują. Cena zależy od wielkości zlecenia (szacowanej z budżetu klienta):</p>
-    <div class="grid grid-3">
-      ${OFFER_TIERS.map(t=>`<div class="card" style="text-align:center">
-        <div class="plan-name" style="text-transform:capitalize">${t.label} zlecenie</div>
-        <div class="plan-price">${t.price} zł<small> netto/oferta</small></div>
-        <div class="muted">${t.id==='small'?'budżet do 10 000 zł':t.id==='medium'?'budżet 10 000 – 50 000 zł':'budżet powyżej 50 000 zł'}</div>
-      </div>`).join('')}
+views.cennik = () => `
+  <div class="form-narrow" style="text-align:center">
+    <div class="promo-pill" style="margin:0 auto 20px">🎉 Promocja startowa</div>
+    <h1 style="margin-bottom:10px">Teraz wszystko za darmo</h1>
+    <p class="muted" style="margin-bottom:26px">W ramach promocji startowej korzystanie z FachowiecPRO jest <b>całkowicie bezpłatne</b> — zarówno dla klientów, jak i dla wykonawców. Bez abonamentów, bez limitów ofert, bez opłat za leady.</p>
+    <div class="panel" style="text-align:left">
+      <div class="kv"><span>Dodawanie zleceń przez klientów</span><b>0 zł</b></div>
+      <div class="kv"><span>Składanie ofert przez wykonawców</span><b>0 zł — bez limitu</b></div>
+      <div class="kv"><span>Profil z ocenami i renomą</span><b>0 zł</b></div>
+      <div class="kv"><span>Dostęp do wszystkich zleceń</span><b>0 zł</b></div>
     </div>
-    <p class="hint" style="margin-top:12px">Przycisk zakupu pojawia się przy zleceniu, gdy nie masz już dostępnych ofert w planie.</p>
-  </div>
-  <div class="notice" style="margin-top:26px">💳 <b>Demo:</b> płatności są symulowane — kliknięcie „Wybierz plan" lub „Kup ofertę" od razu aktywuje usługę.</div>`;
-};
+    <a class="btn btn-accent" style="margin-top:22px" href="#/rejestracja">Załóż darmowe konto wykonawcy</a>
+    <p class="hint" style="margin-top:14px">Korzystaj póki trwa promocja — o ewentualnych zmianach poinformujemy z wyprzedzeniem.</p>
+  </div>`;
 
 views['jak-to-dziala'] = () => `
   <h1>System renomy i punktacji</h1>
@@ -595,7 +577,7 @@ views['jak-to-dziala'] = () => `
 
 views.dodaj = () => {
   const u = me();
-  if(u && u.type==='company') return `<div class="empty">Konta firmowe nie dodają zleceń. <a href="#/zlecenia">Przeglądaj giełdę zleceń →</a></div>`;
+  if(u && u.type==='company') return `<div class="empty">Konta wykonawców nie dodają zleceń. <a href="#/zlecenia">Przeglądaj giełdę zleceń →</a></div>`;
   return `
   <div class="form-narrow">
     <h1 style="margin-bottom:6px">Dodaj zlecenie</h1>
@@ -638,26 +620,36 @@ views.rejestracja = () => `
     <h1 style="margin-bottom:20px">Rejestracja</h1>
     <div class="panel"><form onsubmit="return doRegister(event)">
       <div class="field"><label>Typ konta</label>
-        <select name="type" onchange="document.getElementById('firmFields').style.display=this.value==='company'?'block':'none'">
+        <select name="type" onchange="updateRegFields(this.value)">
           <option value="client">👤 Klient — chcę zlecać prace</option>
-          <option value="company">🏢 Firma / wykonawca — chcę zdobywać zlecenia</option>
+          <option value="fachowiec">👷 Fachowiec — osoba prywatna szukająca zleceń</option>
+          <option value="company">🏢 Firma — wykonawca z działalnością (NIP)</option>
         </select></div>
-      <div class="field"><label>Nazwa firmy / imię i nazwisko</label><input name="name" required></div>
+      <div class="field"><label id="nameLabel">Imię i nazwisko</label><input name="name" required></div>
       <div class="field"><label>E-mail</label><input name="email" type="email" required></div>
       <div class="field"><label>Hasło (min. 6 znaków)</label><input name="password" type="password" minlength="6" required></div>
       <div class="field"><label>Miejscowość</label><input name="city" required></div>
-      <div id="firmFields" style="display:none">
-        <div class="field"><label>Adres firmy</label><input name="address" placeholder="ul. Przykładowa 1, 00-001 Warszawa"></div>
-        <div class="field"><label>NIP</label><input name="nip" inputmode="numeric" maxlength="10" placeholder="np. 5260250274"></div>
+      <div id="workerFields" style="display:none">
         <div class="field"><label>Numer kontaktowy</label><input name="phone" type="tel" placeholder="np. 600 100 200"></div>
-        <div class="field"><label>Opis firmy</label><textarea name="desc" placeholder="Czym się zajmujecie, doświadczenie, region działania…"></textarea></div>
+        <div class="field"><label id="descLabel">O mnie / opis</label><textarea name="desc" placeholder="Czym się zajmujesz, doświadczenie, region działania…"></textarea></div>
         <div class="field"><label>Specjalizacje (przytrzymaj Ctrl, by wybrać kilka)</label>
           <select name="cats" multiple size="6">${CATEGORIES.map(c=>`<option value="${c.id}">${c.icon} ${c.name}</option>`).join('')}</select></div>
-        <p class="hint">Nowa firma startuje na darmowym planie <b>Demo</b> — 3 oferty na start. Potem subskrypcja albo zakup pojedynczych ofert (50–200 zł zależnie od wielkości zlecenia).</p>
+        <div id="companyOnlyFields" style="display:none">
+          <div class="field"><label>Adres firmy</label><input name="address" placeholder="ul. Przykładowa 1, 00-001 Gdańsk"></div>
+          <div class="field"><label>NIP</label><input name="nip" inputmode="numeric" maxlength="10" placeholder="np. 5260250274"></div>
+        </div>
+        <p class="hint">🎉 W ramach promocji startowej konto wykonawcy jest <b>w pełni darmowe</b> — bez limitów ofert i opłat.</p>
       </div>
       <button class="btn btn-primary" style="width:100%">Załóż konto</button>
     </form></div>
   </div>`;
+function updateRegFields(type){
+  const worker = type==='company' || type==='fachowiec';
+  document.getElementById('workerFields').style.display = worker ? 'block' : 'none';
+  document.getElementById('companyOnlyFields').style.display = type==='company' ? 'block' : 'none';
+  document.getElementById('nameLabel').textContent = type==='company' ? 'Nazwa firmy' : 'Imię i nazwisko';
+  document.getElementById('descLabel').textContent = type==='company' ? 'Opis firmy' : 'O mnie / opis';
+}
 
 views.panel = () => {
   const u = me();
@@ -680,13 +672,11 @@ views._panelClient = (u) => {
 };
 
 views._panelCompany = (u) => {
-  const p = plan(u.plan);
-  const left = offersLeft(u);
   const myOffers = DB.jobs.flatMap(j=>j.offers.filter(o=>o.companyId===u.id).map(o=>({...o, job:j})));
   const won = myOffers.filter(o=>o.accepted).length;
   const matching = DB.jobs.filter(j=>j.status==='open' && u.cats.includes(j.cat) && !j.offers.some(o=>o.companyId===u.id));
   return `
-  <h1>Panel firmy — ${esc(u.name)}</h1>
+  <h1>Panel wykonawcy — ${esc(u.name)} <span class="muted" style="font-size:1rem">(${workerIcon(u)} ${workerLabel(u)})</span></h1>
   <div style="margin:10px 0 18px">${repBadge(u.id)} ${starsHTML(avgStars(u.id))} <span class="muted">(${companyReviews(u.id).length} opinii · ${recommendPct(u.id)}% poleca)</span></div>
   <div class="statgrid">
     <div class="stat"><b>${repScore(u.id)}</b><span>punkty renomy</span></div>
@@ -696,12 +686,8 @@ views._panelCompany = (u) => {
   </div>
 
   <div class="panel">
-    <h2>Subskrypcja: ${p.name} <span class="muted" style="font-size:.85rem">(${p.price} zł/mies.)</span></h2>
-    ${p.offers===Infinity
-      ? '<p class="verified">∞ Oferty bez limitu</p>'
-      : `<p>Wykorzystane oferty w tym miesiącu: <b>${u.offersUsed||0} / ${p.offers}</b> (pozostało: ${left})</p>
-         <div class="quota"><i style="width:${Math.min(100,(u.offersUsed||0)/p.offers*100)}%"></i></div>`}
-    <div style="margin-top:14px"><a class="btn btn-accent btn-sm" href="#/cennik">Zmień plan</a></div>
+    <h2>🎉 Konto w promocji startowej</h2>
+    <p class="verified">Składanie ofert za darmo i bez limitów — korzystaj póki trwa promocja.</p>
   </div>
 
   <div class="panel">
@@ -739,6 +725,8 @@ async function doRegister(e){
   const f = new FormData(e.target);
   const email = f.get('email').trim().toLowerCase();
   const type = f.get('type');
+  // 'fachowiec' i 'company' zapisujemy do tabeli wykonawców (companies); różni je tylko NIP.
+  const dbType = type==='client' ? 'client' : 'company';
   let row;
   if(type==='company'){
     const address=(f.get('address')||'').trim(), nip=(f.get('nip')||'').trim(), phone=(f.get('phone')||'').trim();
@@ -747,11 +735,16 @@ async function doRegister(e){
     row = {name:f.get('name'), city:f.get('city'), address, nip, phone,
       cats:[...e.target.querySelector('[name=cats]').selectedOptions].map(o=>o.value),
       "desc":f.get('desc')||''};
+  } else if(type==='fachowiec'){
+    // osoba prywatna: bez NIP i adresu firmy
+    row = {name:f.get('name'), city:f.get('city'), nip:'', address:'', phone:(f.get('phone')||'').trim(),
+      cats:[...e.target.querySelector('[name=cats]').selectedOptions].map(o=>o.value),
+      "desc":f.get('desc')||''};
   } else {
     row = {name:f.get('name'), city:f.get('city')};
   }
   try{
-    const res = await Data.register(type, email, f.get('password'), row);
+    const res = await Data.register(dbType, email, f.get('password'), row);
     if(res.needsConfirm){
       toast('📧 Sprawdź skrzynkę i potwierdź e-mail, potem zaloguj się');
       location.hash='#/logowanie';
