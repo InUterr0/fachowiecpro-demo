@@ -15,12 +15,39 @@
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
-  "@type": "Organization",
-  "name": "FachowiecPRO",
-  "url": "https://fachowiecpro.com",
-  "description": "Platforma łącząca klientów z remontem ze sprawdzonymi ekipami i fachowcami.",
-  "areaServed": "Polska",
-  "sameAs": []
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://fachowiecpro.com/#organization",
+      "name": "FachowiecPRO",
+      "url": "https://fachowiecpro.com",
+      "description": "Platforma łącząca klientów z remontem ze sprawdzonymi ekipami i fachowcami w Trójmieście.",
+      "sameAs": []
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://fachowiecpro.com/#website",
+      "name": "FachowiecPRO",
+      "url": "https://fachowiecpro.com",
+      "publisher": {"@id": "https://fachowiecpro.com/#organization"},
+      "inLanguage": "pl-PL"
+    },
+    {
+      "@type": "ProfessionalService",
+      "@id": "https://fachowiecpro.com/#service",
+      "name": "FachowiecPRO — zlecenia remontowe i budowlane",
+      "url": "https://fachowiecpro.com",
+      "description": "Opisz zlecenie remontowe, a sprawdzone ekipy z ocenami prześlą Ci oferty. Wykończenia, łazienki, hydraulika, elektryka, dachy i więcej.",
+      "areaServed": [
+        {"@type": "City", "name": "Gdańsk"},
+        {"@type": "City", "name": "Gdynia"},
+        {"@type": "City", "name": "Sopot"},
+        {"@type": "Place", "name": "Trójmiasto"}
+      ],
+      "serviceType": ["Remonty", "Wykończenia wnętrz", "Łazienki i glazura", "Hydraulika", "Elektryka", "Dachy i rynny", "Okna i drzwi", "Ocieplenia i elewacje"],
+      "provider": {"@id": "https://fachowiecpro.com/#organization"}
+    }
+  ]
 }
 </script>
 <link rel="stylesheet" href="css/style.css">

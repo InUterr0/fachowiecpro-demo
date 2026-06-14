@@ -215,3 +215,6 @@ textarea{min-height:110px;resize:vertical}
 .article table{width:100%;border-collapse:collapse;margin:0 0 18px;font-size:.92rem}
 .article th,.article td{border:1px solid var(--border);padding:9px 12px;text-align:left}
 .article th{background:#f0f4fa}
+.article .faq{margin:18px 0 8px}
+.article .faq h3{background:#f6f8fc;border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin:10px 0 0;font-size:1.05rem}
+.article .faq p{padding:10px 14px 4px;margin:0 0 6px}
