@@ -199,6 +199,7 @@ views.home = () => {
     <p>FachowiecPRO to giełda zleceń budowlanych, na której liczy się <b>renoma</b> — punkty, oceny i opinie z prawdziwych, ukończonych prac.</p>
     <div class="hero-actions">
       <a class="btn btn-accent" href="#/dodaj">Dodaj zlecenie — za darmo</a>
+      <a class="btn btn-outline" href="#/kalkulator">🧮 Policz koszt remontu</a>
       <a class="btn btn-ghost" href="#/rejestracja">Jestem wykonawcą</a>
     </div>
     <div class="promo-pill">🎉 Promocja startowa — dla wykonawców <b>wszystko za darmo</b>, bez limitów i opłat</div>
@@ -555,6 +556,108 @@ views.cennik = () => `
     <p class="hint" style="margin-top:14px">Korzystaj póki trwa promocja — o ewentualnych zmianach poinformujemy z wyprzedzeniem.</p>
   </div>`;
 
+// ===================== KALKULATOR WYCENY REMONTU =====================
+// Stawki ROBOCIZNY (zł), orientacyjne dla rynku PL 2026. Materiały liczone osobno.
+const RENO_ITEMS = [
+  {id:'malowanie',  label:'Malowanie ścian i sufitów', basis:'area',    unit:'m² pow.', min:22,  max:40},
+  {id:'gladzie',    label:'Gładzie gipsowe na ścianach', basis:'area',   unit:'m² pow.', min:30,  max:55},
+  {id:'podlogi',    label:'Układanie podłóg (panele/winyl)', basis:'area', unit:'m²',     min:35,  max:70},
+  {id:'sufity',     label:'Sufity podwieszane (karton-gips)', basis:'area', unit:'m²',    min:60,  max:120},
+  {id:'elektryka',  label:'Wymiana instalacji elektrycznej', basis:'area', unit:'m²',     min:80,  max:150},
+  {id:'hydraulika', label:'Wymiana instalacji hydraulicznej', basis:'area', unit:'m²',    min:60,  max:130},
+  {id:'plytki',     label:'Układanie płytek / glazury', basis:'plytki',   unit:'m² płytek', min:90, max:170},
+  {id:'lazienka',   label:'Remont łazienki pod klucz (robocizna)', basis:'lazienki', unit:'szt.', min:6000, max:14000},
+  {id:'kuchnia',    label:'Montaż / remont kuchni (robocizna)', basis:'kuchnie', unit:'szt.', min:3000, max:9000},
+  {id:'drzwi',      label:'Montaż drzwi wewnętrznych', basis:'drzwi',     unit:'szt.',   min:200, max:450},
+];
+const RENO_STANDARD = {ekonomiczny:0.85, standardowy:1, premium:1.4};
+const RENO_REGION   = {duze:1.15, srednie:1.0, mniejsze:0.9};
+
+views.kalkulator = () => `
+  <div class="form-narrow" style="max-width:880px">
+    <h1 style="margin-bottom:6px">Kalkulator wyceny remontu</h1>
+    <p class="muted" style="margin-bottom:20px">Oszacuj orientacyjny koszt remontu w kilka sekund. Zaznacz zakres prac, podaj metraż i standard — wynik liczy się na bieżąco.</p>
+    <div class="detail-grid">
+      <div class="panel">
+        <div class="field"><label>Powierzchnia mieszkania / lokalu (m²)</label>
+          <input id="renoArea" type="number" min="0" step="1" value="50" oninput="calcReno()"></div>
+        <div class="grid grid-2">
+          <div class="field"><label>Standard wykończenia</label>
+            <select id="renoStandard" onchange="calcReno()">
+              <option value="ekonomiczny">Ekonomiczny</option>
+              <option value="standardowy" selected>Standardowy</option>
+              <option value="premium">Premium</option>
+            </select></div>
+          <div class="field"><label>Region</label>
+            <select id="renoRegion" onchange="calcReno()">
+              <option value="duze" selected>Duże miasto (np. Trójmiasto)</option>
+              <option value="srednie">Średnie miasto</option>
+              <option value="mniejsze">Mniejsza miejscowość</option>
+            </select></div>
+        </div>
+        <label style="font-weight:600;display:block;margin:6px 0 8px">Zakres prac</label>
+        ${RENO_ITEMS.map(it=>`
+          <div class="reno-row" style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">
+            <label style="flex:1;display:flex;align-items:center;gap:8px;margin:0">
+              <input type="checkbox" id="chk_${it.id}" style="width:auto" onchange="calcReno()"> ${it.label}
+            </label>
+            ${['plytki','lazienki','kuchnie','drzwi'].includes(it.basis)
+              ? `<input id="qty_${it.id}" type="number" min="0" step="1" value="${it.basis==='plytki'?'10':'1'}" oninput="calcReno()" style="width:70px" title="${it.unit}">
+                 <span class="muted" style="font-size:.78rem;width:54px">${it.unit}</span>`
+              : `<span class="muted" style="font-size:.78rem;width:124px;text-align:right">wg metrażu</span>`}
+          </div>`).join('')}
+      </div>
+      <div>
+        <div class="panel" id="renoResult"></div>
+        <div class="panel">
+          <h3 style="margin-top:0">💡 Dostań realne wyceny</h3>
+          <p class="muted" style="margin-bottom:12px">Kalkulator daje orientację. Po dokładną, wiążącą wycenę opisz zlecenie — wykonawcy prześlą Ci oferty z ceną i terminem. Za darmo.</p>
+          <a class="btn btn-accent" style="width:100%" href="#/dodaj">Dodaj zlecenie i odbierz oferty</a>
+        </div>
+      </div>
+    </div>
+    <div class="notice" style="margin-top:18px">ℹ️ To szacunek orientacyjny (robocizna + przybliżony koszt materiałów) dla rynku 2026. Realna cena zależy od stanu lokalu, użytych materiałów i konkretnego wykonawcy.</div>
+  </div>`;
+
+function calcReno(){
+  const num = id => Math.max(0, parseFloat((document.getElementById(id)||{}).value)||0);
+  const area = num('renoArea');
+  const std = RENO_STANDARD[(document.getElementById('renoStandard')||{}).value] || 1;
+  const reg = RENO_REGION[(document.getElementById('renoRegion')||{}).value] || 1;
+  const basisQty = {area, plytki:num('qty_plytki'), lazienki:num('qty_lazienka'), kuchnie:num('qty_kuchnia'), drzwi:num('qty_drzwi')};
+  let baseMin=0, baseMax=0; const rows=[];
+  RENO_ITEMS.forEach(it=>{
+    const on = (document.getElementById('chk_'+it.id)||{}).checked;
+    if(!on) return;
+    const qty = it.basis==='area' ? area : basisQty[it.basis] || 0;
+    if(qty<=0) return;
+    const mn = it.min*qty, mx = it.max*qty;
+    baseMin+=mn; baseMax+=mx;
+    rows.push({label:it.label, qty, unit:it.unit, mn, mx});
+  });
+  const out = document.getElementById('renoResult'); if(!out) return;
+  if(!rows.length){ out.innerHTML = '<h2 style="margin-top:0">Szacunkowy koszt</h2><p class="muted">Zaznacz zakres prac, aby zobaczyć wycenę.</p>'; return; }
+  const r = x => Math.round(x/100)*100;
+  const robMin = baseMin*std*reg, robMax = baseMax*std*reg;
+  const matFactor = {0.85:0.5, 1:0.7, 1.4:1.0}[std] || 0.7;
+  const matMin = robMin*0.5, matMax = robMax*matFactor*1.4;
+  const totMin = robMin+matMin, totMax = robMax+matMax;
+  const zl = x => r(x).toLocaleString('pl-PL')+' zł';
+  out.innerHTML = `
+    <h2 style="margin-top:0">Szacunkowy koszt</h2>
+    <table style="width:100%;border-collapse:collapse;font-size:.86rem;margin-bottom:12px">
+      <thead><tr><th style="text-align:left;padding:4px 0">Pozycja</th><th style="text-align:right">Robocizna</th></tr></thead>
+      <tbody>
+        ${rows.map(x=>`<tr><td style="padding:4px 0;border-top:1px solid var(--border)">${x.label}<br><span class="muted" style="font-size:.76rem">${x.qty} ${x.unit}</span></td>
+          <td style="text-align:right;border-top:1px solid var(--border);white-space:nowrap">${zl(x.mn*std*reg)}–${zl(x.mx*std*reg)}</td></tr>`).join('')}
+      </tbody>
+    </table>
+    <div class="kv"><span>Robocizna razem</span><b>${zl(robMin)} – ${zl(robMax)}</b></div>
+    <div class="kv"><span>Materiały (szac.)</span><b>${zl(matMin)} – ${zl(matMax)}</b></div>
+    <div class="kv" style="font-size:1.05rem;margin-top:6px"><span><b>Łącznie</b></span><b style="color:var(--primary)">${zl(totMin)} – ${zl(totMax)}</b></div>
+  `;
+}
+
 views['jak-to-dziala'] = () => `
   <h1>System renomy i punktacji</h1>
   <div class="detail-grid" style="margin-top:18px">
@@ -890,6 +993,7 @@ function render(){
   const [route, param] = hash.split('/');
   const view = views[route||'home'] || views.notfound;
   $('#app').innerHTML = view(param);
+  if((route||'home')==='kalkulator') calcReno();
   window.scrollTo(0,0);
 }
 window.addEventListener('hashchange', render);
