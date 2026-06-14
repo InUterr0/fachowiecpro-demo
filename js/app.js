@@ -616,7 +616,7 @@ views.kalkulator = () => `
         </div>
       </div>
     </div>
-    <div class="notice" style="margin-top:18px">ℹ️ To szacunek orientacyjny (robocizna + przybliżony koszt materiałów) dla rynku 2026. Realna cena zależy od stanu lokalu, użytych materiałów i konkretnego wykonawcy.</div>
+    <div class="notice" style="margin-top:18px">ℹ️ <b><u>To wyliczenia wyłącznie orientacyjne (ogólne).</u></b> Rzeczywista cena <b>różni się w zależności od konkretnej firmy lub fachowca</b>, stanu lokalu i użytych materiałów. Kalkulator nie jest ofertą — po wiążącą wycenę dodaj zlecenie i odbierz oferty od wykonawców.</div>
   </div>`;
 
 function calcReno(){
@@ -655,6 +655,7 @@ function calcReno(){
     <div class="kv"><span>Robocizna razem</span><b>${zl(robMin)} – ${zl(robMax)}</b></div>
     <div class="kv"><span>Materiały (szac.)</span><b>${zl(matMin)} – ${zl(matMax)}</b></div>
     <div class="kv" style="font-size:1.05rem;margin-top:6px"><span><b>Łącznie</b></span><b style="color:var(--primary)">${zl(totMin)} – ${zl(totMax)}</b></div>
+    <p class="muted" style="font-size:.78rem;margin-top:10px"><u>Szacunek ogólny</u> — finalna wycena konkretnej firmy lub fachowca może się różnić.</p>
   `;
 }
 
