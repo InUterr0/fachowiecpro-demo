@@ -109,6 +109,7 @@ create policy "companies update" on public.companies for update using (auth.uid(
 create policy "jobs select" on public.jobs for select using (true);
 create policy "jobs insert" on public.jobs for insert with check (auth.uid() = client_id);
 create policy "jobs update" on public.jobs for update using (auth.uid() = client_id);
+create policy "jobs delete" on public.jobs for delete using (auth.uid() = client_id);
 
 -- Oferty: pełne dane widzi TYLKO właściciel zlecenia i firma-autor.
 -- Reszta świata widzi wyłącznie widok offers_public (cena, bez firmy).

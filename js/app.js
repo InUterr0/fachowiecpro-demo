@@ -112,7 +112,7 @@ function uid(prefix){ return prefix + Math.random().toString(36).slice(2,9); }
 function today(){ return new Date().toISOString().slice(0,10); }
 
 // ===================== KOMPONENTY =====================
-function jobCard(j){
+function jobCard(j, withDelete=false){
   const c = cat(j.cat);
   return `<div class="card job-card">
     <div>
@@ -125,7 +125,10 @@ function jobCard(j){
     <p class="muted">${esc(j.desc).slice(0,140)}…</p>
     <div class="job-foot">
       <span class="job-budget">${esc(j.budget)}</span>
-      <a class="btn btn-outline btn-sm" href="#/zlecenie/${j.id}">Szczegóły</a>
+      <span style="display:flex;gap:6px">
+        <a class="btn btn-outline btn-sm" href="#/zlecenie/${j.id}">Szczegóły</a>
+        ${withDelete?`<button class="btn btn-danger btn-sm" onclick="deleteJob('${j.id}')">Usuń</button>`:''}
+      </span>
     </div>
   </div>`;
 }
@@ -327,6 +330,7 @@ views.zlecenie = (id) => {
         ${j.deadline ? `<div class="kv"><span>Planowany termin realizacji</span><b>📅 ${esc(j.deadline)}</b></div>`:''}
         <div class="kv"><span>Dodano</span><b>${j.created}</b></div>
         <div class="kv"><span>Zleceniodawca</span><b>${esc(client(j.clientId)?.name||'Klient')}</b></div>
+        ${owner?`<div style="margin-top:14px"><button class="btn btn-danger btn-sm" onclick="deleteJob('${j.id}')">🗑️ Usuń zlecenie</button></div>`:''}
       </div>
 
       <div class="panel">
@@ -573,10 +577,7 @@ const RENO_ITEMS = [
 const RENO_STANDARD = {ekonomiczny:0.85, standardowy:1, premium:1.4};
 const RENO_REGION   = {duze:1.15, srednie:1.0, mniejsze:0.9};
 
-views.kalkulator = () => `
-  <div class="form-narrow" style="max-width:880px">
-    <h1 style="margin-bottom:6px">Kalkulator wyceny remontu</h1>
-    <p class="muted" style="margin-bottom:20px">Oszacuj orientacyjny koszt remontu w kilka sekund. Zaznacz zakres prac, podaj metraż i standard — wynik liczy się na bieżąco.</p>
+function renoCalcBlock(){ return `
     <div class="detail-grid">
       <div class="panel">
         <div class="field"><label>Powierzchnia mieszkania / lokalu (m²)</label>
@@ -616,7 +617,14 @@ views.kalkulator = () => `
         </div>
       </div>
     </div>
-    <div class="notice" style="margin-top:18px">ℹ️ <b><u>To wyliczenia wyłącznie orientacyjne (ogólne).</u></b> Rzeczywista cena <b>różni się w zależności od konkretnej firmy lub fachowca</b>, stanu lokalu i użytych materiałów. Kalkulator nie jest ofertą — po wiążącą wycenę dodaj zlecenie i odbierz oferty od wykonawców.</div>
+    <div class="notice" style="margin-top:18px">ℹ️ <b><u>To wyliczenia wyłącznie orientacyjne (ogólne).</u></b> Rzeczywista cena <b>różni się w zależności od konkretnej firmy lub fachowca</b>, stanu lokalu i użytych materiałów. Kalkulator nie jest ofertą — po wiążącą wycenę dodaj zlecenie i odbierz oferty od wykonawców.</div>`;
+}
+
+views.kalkulator = () => `
+  <div class="form-narrow" style="max-width:880px">
+    <h1 style="margin-bottom:6px">Kalkulator wyceny remontu</h1>
+    <p class="muted" style="margin-bottom:20px">Oszacuj orientacyjny koszt remontu w kilka sekund. Zaznacz zakres prac, podaj metraż i standard — wynik liczy się na bieżąco.</p>
+    ${renoCalcBlock()}
   </div>`;
 
 function calcReno(){
@@ -772,7 +780,11 @@ views._panelClient = (u) => {
     <div class="stat"><b>${DB.reviews.filter(r=>r.clientId===u.id).length}</b><span>wystawione oceny</span></div>
   </div>
   <div class="section-head"><h2>Moje zlecenia</h2><a class="btn btn-accent btn-sm" href="#/dodaj">+ Nowe zlecenie</a></div>
-  ${myJobs.length? `<div class="grid grid-3">${myJobs.map(jobCard).join('')}</div>` : '<div class="empty">Nie masz jeszcze zleceń.</div>'}`;
+  ${myJobs.length? `<div class="grid grid-3">${myJobs.map(j=>jobCard(j,true)).join('')}</div>` : '<div class="empty">Nie masz jeszcze zleceń.</div>'}
+
+  <div class="section-head" style="margin-top:34px"><h2>🧮 Kalkulator wyceny remontu</h2></div>
+  <p class="muted" style="margin-bottom:14px">Oszacuj orientacyjny koszt, zanim dodasz zlecenie.</p>
+  ${renoCalcBlock()}`;
 };
 
 views._panelCompany = (u) => {
@@ -944,6 +956,19 @@ async function acceptOffer(jobId, companyId){
   }catch(err){ toast('❌ '+err.message); }
 }
 
+async function deleteJob(jobId){
+  const u = me();
+  const j = DB.jobs.find(x=>x.id===jobId);
+  if(!u || u.type!=='client' || !j || j.clientId!==u.id){ toast('❌ Możesz usunąć tylko własne zlecenie'); return; }
+  if(!confirm(`Usunąć zlecenie „${j.title}"? Tej operacji nie można cofnąć — znikną też oferty i wiadomości do tego zlecenia.`)) return;
+  try{
+    await Data.deleteJob(jobId);
+    await sync();
+    if(location.hash.startsWith('#/zlecenie/')) location.hash='#/panel';
+    toast('Zlecenie usunięte ✔');
+  }catch(err){ toast('❌ '+err.message); }
+}
+
 async function completeJob(jobId){
   try{
     await Data.completeJob(jobId);
@@ -994,7 +1019,7 @@ function render(){
   const [route, param] = hash.split('/');
   const view = views[route||'home'] || views.notfound;
   $('#app').innerHTML = view(param);
-  if((route||'home')==='kalkulator') calcReno();
+  if(document.getElementById('renoArea')) calcReno();
   window.scrollTo(0,0);
 }
 window.addEventListener('hashchange', render);

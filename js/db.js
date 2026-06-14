@@ -170,6 +170,11 @@ const Data = {
     if(r.error) _fail(r.error);
   },
 
+  async deleteJob(jobId){
+    const {error} = await sb.from('jobs').delete().eq('id', jobId);
+    if(error) _fail(error);
+  },
+
   async completeJob(jobId){
     const {error} = await sb.from('jobs').update({status:'completed'}).eq('id', jobId);
     if(error) _fail(error);
