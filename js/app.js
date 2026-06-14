@@ -713,6 +713,10 @@ views.dodaj = () => {
       <div class="field"><label><input type="checkbox" name="urgent" style="width:auto"> Zlecenie pilne</label></div>
       <button class="btn btn-primary" style="width:100%">Opublikuj zlecenie</button>
     </form></div>
+
+    <div class="section-head" style="margin-top:34px"><h2>🧮 Nie wiesz, ile to kosztuje? Policz orientacyjnie</h2></div>
+    <p class="muted" style="margin-bottom:14px">Szacunek pomoże Ci ustawić budżet zlecenia. Po realne wyceny i tak najlepiej opisać zlecenie powyżej.</p>
+    ${renoCalcBlock()}
   </div>`;
 };
 
