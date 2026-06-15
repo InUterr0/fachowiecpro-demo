@@ -150,3 +150,47 @@ on conflict (id) do nothing;
 
 create policy "job photos upload" on storage.objects
   for insert to authenticated with check (bucket_id = 'job-photos');
+
+-- ============================================================
+-- FORUM SPOŁECZNOŚCI (wątki + komentarze)
+-- Dopisane: uruchom ten fragment w SQL Editor, jeśli reszta już istnieje.
+-- ============================================================
+
+create table if not exists public.forum_posts (
+  id uuid primary key default gen_random_uuid(),
+  category text not null,
+  author_id uuid not null references auth.users on delete cascade,
+  author_name text not null,
+  author_type text not null default 'client' check (author_type in ('client','company')),
+  title text not null,
+  body text not null,
+  pinned boolean not null default false,
+  created timestamptz not null default now()
+);
+create index if not exists forum_posts_cat_idx on public.forum_posts (category, created desc);
+
+create table if not exists public.forum_comments (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references public.forum_posts on delete cascade,
+  author_id uuid not null references auth.users on delete cascade,
+  author_name text not null,
+  author_type text not null default 'client' check (author_type in ('client','company')),
+  body text not null,
+  created timestamptz not null default now()
+);
+create index if not exists forum_comments_post_idx on public.forum_comments (post_id, created);
+
+alter table public.forum_posts    enable row level security;
+alter table public.forum_comments enable row level security;
+
+-- Wątki: czyta każdy; pisze/edytuje/usuwa zalogowany autor we własnym imieniu
+create policy "forum_posts select" on public.forum_posts for select using (true);
+create policy "forum_posts insert" on public.forum_posts for insert with check (auth.uid() = author_id);
+create policy "forum_posts update" on public.forum_posts for update using (auth.uid() = author_id);
+create policy "forum_posts delete" on public.forum_posts for delete using (auth.uid() = author_id);
+
+-- Komentarze: analogicznie
+create policy "forum_comments select" on public.forum_comments for select using (true);
+create policy "forum_comments insert" on public.forum_comments for insert with check (auth.uid() = author_id);
+create policy "forum_comments update" on public.forum_comments for update using (auth.uid() = author_id);
+create policy "forum_comments delete" on public.forum_comments for delete using (auth.uid() = author_id);
