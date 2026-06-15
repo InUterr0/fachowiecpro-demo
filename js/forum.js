@@ -19,6 +19,11 @@ const FORUM_CATEGORIES = [
 ];
 const FORUM_CAT_BY_SLUG = Object.fromEntries(FORUM_CATEGORIES.map(c => [c.slug, c]));
 
+// Wątki przykładowe (DEMO) — front-end, oznaczone plakietką „Przykładowy", read-only.
+const DEMO = (typeof DEMO_FORUM !== 'undefined') ? DEMO_FORUM : [];
+const isDemo = id => typeof id === 'string' && id.startsWith('demo-');
+const byNewest = (a,b) => (Number(!!b.pinned) - Number(!!a.pinned)) || (new Date(b.created) - new Date(a.created));
+
 const fsb = (typeof SUPABASE_URL !== 'undefined' && SUPABASE_URL)
   ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
   : null;
@@ -55,18 +60,19 @@ async function forumLoadUser(){
 // --- DANE ---
 async function forumLatest(limit=8){
   const r = await fsb.from('forum_posts').select('*').order('created',{ascending:false}).limit(limit);
-  return r.data || [];
+  return [...(r.data||[]), ...DEMO].sort((a,b)=> new Date(b.created)-new Date(a.created)).slice(0, limit);
 }
 async function forumPostsByCat(cat){
   const r = await fsb.from('forum_posts').select('*')
     .eq('category', cat).order('pinned',{ascending:false}).order('created',{ascending:false});
-  return r.data || [];
+  return [...(r.data||[]), ...DEMO.filter(p=>p.category===cat)].sort(byNewest);
 }
 async function forumCountsByCat(){
   // jedno zapytanie, zliczamy po stronie klienta
   const r = await fsb.from('forum_posts').select('category');
   const counts = {};
   (r.data||[]).forEach(p => counts[p.category] = (counts[p.category]||0)+1);
+  DEMO.forEach(p => counts[p.category] = (counts[p.category]||0)+1);
   return counts;
 }
 async function forumComments(postId){
@@ -75,10 +81,13 @@ async function forumComments(postId){
   return r.data || [];
 }
 async function forumCommentCounts(postIds){
-  if (!postIds.length) return {};
-  const r = await fsb.from('forum_comments').select('post_id').in('post_id', postIds);
   const c = {};
-  (r.data||[]).forEach(x => c[x.post_id] = (c[x.post_id]||0)+1);
+  const realIds = postIds.filter(id => !isDemo(id));
+  if (realIds.length){
+    const r = await fsb.from('forum_comments').select('post_id').in('post_id', realIds);
+    (r.data||[]).forEach(x => c[x.post_id] = (c[x.post_id]||0)+1);
+  }
+  DEMO.forEach(p => { if (postIds.includes(p.id)) c[p.id] = (p.comments||[]).length; });
   return c;
 }
 async function forumCreatePost(cat, title, body){
@@ -144,6 +153,7 @@ async function renderForumCategory(root, cat){
       <div class="thread-head" role="button" tabindex="0">
         <div class="thread-main">
           ${p.pinned ? '<span class="badge badge-urgent" style="margin-right:6px">Przypięte</span>' : ''}
+          ${isDemo(p.id) ? '<span class="badge badge-demo" style="margin-right:6px">Przykładowy</span>' : ''}
           <h3>${fesc(p.title)}</h3>
           <div class="thread-meta">${fesc(p.author_name)}${forumAuthorBadge(p)} · ${ftime(p.created)}</div>
         </div>
@@ -192,6 +202,20 @@ async function renderForumCategory(root, cat){
 async function loadThreadComments(threadEl){
   const id = threadEl.dataset.id;
   const wrap = threadEl.querySelector('.thread-comments');
+
+  // Wątek przykładowy: komentarze z danych demo, bez możliwości odpowiedzi.
+  if (isDemo(id)){
+    const demo = DEMO.find(p => p.id === id);
+    const items = (demo?.comments || []).map(c => `
+      <div class="comment">
+        <div class="comment-meta">${fesc(c.author_name)}${forumAuthorBadge(c)} · ${ftime(c.created)}</div>
+        <div class="comment-body">${fesc(c.body).replace(/\n/g,'<br>')}</div>
+      </div>`).join('');
+    wrap.innerHTML = (items || '<p class="muted">Brak odpowiedzi.</p>') +
+      '<p class="muted" style="margin-top:8px">To wątek przykładowy. Załóż własny wątek powyżej, aby rozpocząć prawdziwą dyskusję.</p>';
+    return;
+  }
+
   const comments = await forumComments(id);
   const items = comments.map(c => `
     <div class="comment" data-id="${c.id}">
