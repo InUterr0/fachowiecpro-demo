@@ -62,6 +62,8 @@ const Data = {
       offers: offersByJob[j.id] || [],
       messages: msgsByJob[j.id] || [],
     }));
+    // Zlecenia przykładowe (demo) — front-end, oznaczone plakietką „Przykładowe".
+    if (typeof DEMO_JOBS !== 'undefined') DB.jobs = [...DB.jobs, ...DEMO_JOBS.map(j => ({messages:[], ...j}))];
   },
 
   // --- sesja / auth ---

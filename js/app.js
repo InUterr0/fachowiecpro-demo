@@ -119,6 +119,7 @@ function jobCard(j, withDelete=false){
       <span class="badge badge-cat">${c.icon} ${esc(c.name)}</span>
       ${statusBadge(j)}
       ${j.urgent?'<span class="badge badge-urgent">PILNE</span>':''}
+      ${j.demo?'<span class="badge badge-demo">Przykładowe</span>':''}
     </div>
     <h3><a href="#/zlecenie/${j.id}">${esc(j.title)}</a></h3>
     <div class="job-meta"><span>📍 ${esc(j.city)}</span><span>📅 ${j.created}</span>${j.deadline?`<span>🗓️ termin: ${j.deadline}</span>`:''}<span>✉️ ofert: ${j.offers.length}</span></div>
@@ -319,7 +320,9 @@ views.zlecenie = (id) => {
         <div style="margin-bottom:10px">
           <span class="badge badge-cat">${c.icon} ${c.name}</span> ${statusBadge(j)}
           ${j.urgent?'<span class="badge badge-urgent">PILNE</span>':''}
+          ${j.demo?'<span class="badge badge-demo">Przykładowe</span>':''}
         </div>
+        ${j.demo?'<div class="demo-note">ℹ️ To <b>przykładowe zlecenie demonstracyjne</b> — pokazuje, jak wygląda serwis. Nie pochodzi od realnego klienta i nie przyjmuje ofert.</div>':''}
         <h2>${esc(j.title)}</h2>
         <p style="margin:12px 0">${esc(j.desc)}</p>
         ${j.photos && j.photos.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">${j.photos.map((src,i)=>`<a href="${src}" target="_blank"><img src="${src}" alt="zdjęcie ${i+1}" style="width:110px;height:110px;object-fit:cover;border-radius:8px;border:1px solid #ddd"></a>`).join('')}</div>`:''}
@@ -329,7 +332,7 @@ views.zlecenie = (id) => {
         <div class="kv"><span>Budżet klienta</span><b>${esc(j.budget)}</b></div>
         ${j.deadline ? `<div class="kv"><span>Planowany termin realizacji</span><b>📅 ${esc(j.deadline)}</b></div>`:''}
         <div class="kv"><span>Dodano</span><b>${j.created}</b></div>
-        <div class="kv"><span>Zleceniodawca</span><b>${esc(client(j.clientId)?.name||'Klient')}</b></div>
+        <div class="kv"><span>Zleceniodawca</span><b>${esc(client(j.clientId)?.name||j.clientName||'Klient')}</b></div>
         ${owner?`<div style="margin-top:14px"><button class="btn btn-danger btn-sm" onclick="deleteJob('${j.id}')">🗑️ Usuń zlecenie</button></div>`:''}
       </div>
 
@@ -386,7 +389,8 @@ views.zlecenie = (id) => {
     <div>
       <div class="panel">
         <h2>Złóż ofertę</h2>
-        ${j.status!=='open' ? '<p class="muted">Zlecenie nie przyjmuje już ofert.</p>'
+        ${j.demo ? '<p class="muted">To zlecenie <b>przykładowe (demo)</b> — nie przyjmuje ofert. W prawdziwym zleceniu w tym miejscu wyślesz swoją wycenę.</p>'
+        : j.status!=='open' ? '<p class="muted">Zlecenie nie przyjmuje już ofert.</p>'
         : !u ? `<p class="muted">Tylko zalogowani wykonawcy mogą składać oferty.</p><a class="btn btn-primary" style="width:100%;margin-top:10px" href="#/logowanie">Zaloguj się jako wykonawca</a>`
         : u.type==='client' ? '<p class="muted">Jesteś zalogowany jako klient — oferty składają wykonawcy.</p>'
         : myOffer ? '<p class="verified">✔ Twoja oferta została wysłana.</p>'
