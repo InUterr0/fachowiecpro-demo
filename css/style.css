@@ -72,6 +72,7 @@ main{min-height:70vh;padding:26px 18px}
 .badge-open{background:#e6f7ec;color:var(--green)}
 .badge-progress{background:#fef4e0;color:#b07514}
 .badge-done{background:#eceff4;color:var(--muted)}
+.badge-archived{background:#e2e6ea;color:#6b7280;border:1px solid #cbd2d9}
 .badge-urgent{background:#fde8e8;color:var(--red)}
 .badge-demo{background:#ece7fb;color:#5b3fc4;border:1px dashed #b9a8ee}
 .demo-note{background:#f6f3ff;border:1px solid #e2d9fb;color:#4a3a86;border-radius:8px;padding:9px 12px;font-size:.85rem;margin:6px 0 12px}

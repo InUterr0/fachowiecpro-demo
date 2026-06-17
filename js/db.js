@@ -182,6 +182,11 @@ const Data = {
     if(error) _fail(error);
   },
 
+  async archiveJob(jobId){
+    const {error} = await sb.from('jobs').update({status:'archived'}).eq('id', jobId);
+    if(error) _fail(error);
+  },
+
   async submitReview(j, stars, crit, text, recommend){
     const u = me();
     let r = await sb.from('reviews').insert({

@@ -45,7 +45,7 @@ create table public.jobs (
   photos text[] not null default '{}',
   "desc" text not null default '',
   urgent boolean not null default false,
-  status text not null default 'open' check (status in ('open','in_progress','completed')),
+  status text not null default 'open' check (status in ('open','in_progress','completed','archived')),
   accepted_company uuid references public.companies,
   reviewed boolean not null default false,
   created date not null default current_date

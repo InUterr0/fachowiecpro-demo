@@ -67,6 +67,7 @@ function toast(msg){
 function statusBadge(j){
   if(j.status==='open') return `<span class="badge badge-open">Otwarte</span>`;
   if(j.status==='in_progress') return `<span class="badge badge-progress">W realizacji</span>`;
+  if(j.status==='archived') return `<span class="badge badge-archived">Zarchiwizowane</span>`;
   return `<span class="badge badge-done">Zakończone</span>`;
 }
 // ===== TRYB PROMOCYJNY =====
@@ -128,7 +129,8 @@ function jobCard(j, withDelete=false){
       <span class="job-budget">${esc(j.budget)}</span>
       <span style="display:flex;gap:6px">
         <a class="btn btn-outline btn-sm" href="#/zlecenie/${j.id}">Szczegóły</a>
-        ${withDelete?`<button class="btn btn-danger btn-sm" onclick="deleteJob('${j.id}')">Usuń</button>`:''}
+        ${withDelete && j.status==='completed'?`<button class="btn btn-outline btn-sm" onclick="archiveJob('${j.id}')">Archiwizuj</button>`:''}
+        ${withDelete && j.status!=='completed' && j.status!=='archived'?`<button class="btn btn-danger btn-sm" onclick="deleteJob('${j.id}')">Usuń</button>`:''}
       </span>
     </div>
   </div>`;
@@ -333,7 +335,8 @@ views.zlecenie = (id) => {
         ${j.deadline ? `<div class="kv"><span>Planowany termin realizacji</span><b>📅 ${esc(j.deadline)}</b></div>`:''}
         <div class="kv"><span>Dodano</span><b>${j.created}</b></div>
         <div class="kv"><span>Zleceniodawca</span><b>${esc(client(j.clientId)?.name||j.clientName||'Klient')}</b></div>
-        ${owner?`<div style="margin-top:14px"><button class="btn btn-danger btn-sm" onclick="deleteJob('${j.id}')">🗑️ Usuń zlecenie</button></div>`:''}
+        ${owner && j.status==='completed'?`<div style="margin-top:14px"><button class="btn btn-outline btn-sm" onclick="archiveJob('${j.id}')">🗄️ Archiwizuj zlecenie</button></div>`:''}
+        ${owner && j.status!=='completed' && j.status!=='archived'?`<div style="margin-top:14px"><button class="btn btn-danger btn-sm" onclick="deleteJob('${j.id}')">🗑️ Usuń zlecenie</button></div>`:''}
       </div>
 
       <div class="panel">
@@ -981,6 +984,16 @@ async function completeJob(jobId){
   try{
     await Data.completeJob(jobId);
     await sync(); toast('Zlecenie zakończone — wystaw ocenę ⭐');
+  }catch(err){ toast('❌ '+err.message); }
+}
+
+async function archiveJob(jobId){
+  const u = me();
+  const j = DB.jobs.find(x=>x.id===jobId);
+  if(!u || u.type!=='client' || !j || j.clientId!==u.id){ toast('❌ Możesz archiwizować tylko własne zlecenie'); return; }
+  try{
+    await Data.archiveJob(jobId);
+    await sync(); toast('Zlecenie zarchiwizowane 🗄️');
   }catch(err){ toast('❌ '+err.message); }
 }
 
