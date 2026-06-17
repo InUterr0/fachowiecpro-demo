@@ -130,6 +130,7 @@ function jobCard(j, withDelete=false){
       <span style="display:flex;gap:6px">
         <a class="btn btn-outline btn-sm" href="#/zlecenie/${j.id}">Szczegóły</a>
         ${withDelete && j.status==='completed'?`<button class="btn btn-outline btn-sm" onclick="archiveJob('${j.id}')">Archiwizuj</button>`:''}
+        ${withDelete && j.status==='archived'?`<button class="btn btn-outline btn-sm" onclick="restoreJob('${j.id}')">Przywróć</button>`:''}
         ${withDelete && j.status!=='completed' && j.status!=='archived'?`<button class="btn btn-danger btn-sm" onclick="deleteJob('${j.id}')">Usuń</button>`:''}
       </span>
     </div>
@@ -782,16 +783,21 @@ views.panel = () => {
 
 views._panelClient = (u) => {
   const myJobs = DB.jobs.filter(j=>j.clientId===u.id).sort((a,b)=>b.created.localeCompare(a.created));
+  const activeJobs = myJobs.filter(j=>j.status!=='archived');
+  const archivedJobs = myJobs.filter(j=>j.status==='archived');
   return `
   <h1>Panel klienta — ${esc(u.name)}</h1>
   <div class="statgrid" style="margin-top:18px">
-    <div class="stat"><b>${myJobs.length}</b><span>moje zlecenia</span></div>
+    <div class="stat"><b>${activeJobs.length}</b><span>moje zlecenia</span></div>
     <div class="stat"><b>${myJobs.filter(j=>j.status==='open').length}</b><span>otwarte</span></div>
     <div class="stat"><b>${myJobs.reduce((s,j)=>s+j.offers.length,0)}</b><span>otrzymane oferty</span></div>
     <div class="stat"><b>${DB.reviews.filter(r=>r.clientId===u.id).length}</b><span>wystawione oceny</span></div>
   </div>
   <div class="section-head"><h2>Moje zlecenia</h2><a class="btn btn-accent btn-sm" href="#/dodaj">+ Nowe zlecenie</a></div>
-  ${myJobs.length? `<div class="grid grid-3">${myJobs.map(j=>jobCard(j,true)).join('')}</div>` : '<div class="empty">Nie masz jeszcze zleceń.</div>'}
+  ${activeJobs.length? `<div class="grid grid-3">${activeJobs.map(j=>jobCard(j,true)).join('')}</div>` : '<div class="empty">Nie masz jeszcze zleceń.</div>'}
+  ${archivedJobs.length? `
+  <div class="section-head" style="margin-top:34px"><h2>🗄️ Archiwum (${archivedJobs.length})</h2></div>
+  <div class="grid grid-3">${archivedJobs.map(j=>jobCard(j,true)).join('')}</div>`:''}
 
   <div class="section-head" style="margin-top:34px"><h2>🧮 Kalkulator wyceny remontu</h2></div>
   <p class="muted" style="margin-bottom:14px">Oszacuj orientacyjny koszt, zanim dodasz zlecenie.</p>
@@ -994,6 +1000,16 @@ async function archiveJob(jobId){
   try{
     await Data.archiveJob(jobId);
     await sync(); toast('Zlecenie zarchiwizowane 🗄️');
+  }catch(err){ toast('❌ '+err.message); }
+}
+
+async function restoreJob(jobId){
+  const u = me();
+  const j = DB.jobs.find(x=>x.id===jobId);
+  if(!u || u.type!=='client' || !j || j.clientId!==u.id){ toast('❌ Możesz przywrócić tylko własne zlecenie'); return; }
+  try{
+    await Data.completeJob(jobId);
+    await sync(); toast('Zlecenie przywrócone z archiwum ✔');
   }catch(err){ toast('❌ '+err.message); }
 }
 
