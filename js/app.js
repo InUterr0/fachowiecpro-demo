@@ -115,6 +115,8 @@ function today(){ return new Date().toISOString().slice(0,10); }
 // ===================== KOMPONENTY =====================
 function jobCard(j, withDelete=false){
   const c = cat(j.cat);
+  const _u = me();
+  const canManage = withDelete===true && _u && _u.type==='client' && _u.id===j.clientId;
   return `<div class="card job-card">
     <div>
       <span class="badge badge-cat">${c.icon} ${esc(c.name)}</span>
@@ -129,9 +131,9 @@ function jobCard(j, withDelete=false){
       <span class="job-budget">${esc(j.budget)}</span>
       <span style="display:flex;gap:6px">
         <a class="btn btn-outline btn-sm" href="#/zlecenie/${j.id}">Szczegóły</a>
-        ${withDelete && j.status==='completed'?`<button class="btn btn-outline btn-sm" onclick="archiveJob('${j.id}')">Archiwizuj</button>`:''}
-        ${withDelete && j.status==='archived'?`<button class="btn btn-outline btn-sm" onclick="restoreJob('${j.id}')">Przywróć</button>`:''}
-        ${withDelete && j.status!=='completed' && j.status!=='archived'?`<button class="btn btn-danger btn-sm" onclick="deleteJob('${j.id}')">Usuń</button>`:''}
+        ${canManage && j.status==='completed'?`<button class="btn btn-outline btn-sm" onclick="archiveJob('${j.id}')">Archiwizuj</button>`:''}
+        ${canManage && j.status==='archived'?`<button class="btn btn-outline btn-sm" onclick="restoreJob('${j.id}')">Przywróć</button>`:''}
+        ${canManage && j.status!=='completed' && j.status!=='archived'?`<button class="btn btn-danger btn-sm" onclick="deleteJob('${j.id}')">Usuń</button>`:''}
       </span>
     </div>
   </div>`;
@@ -256,7 +258,7 @@ views.home = () => {
 
   <div class="section">
     <div class="section-head"><h2>Najnowsze otwarte zlecenia</h2><a href="#/zlecenia">Wszystkie zlecenia →</a></div>
-    <div class="grid grid-3">${openJobs.slice(0,6).map(jobCard).join('')}</div>
+    <div class="grid grid-3">${openJobs.slice(0,6).map(j=>jobCard(j)).join('')}</div>
   </div>
 
   <div class="section">
@@ -295,7 +297,7 @@ views.kategoria = (catId) => {
     <h1>${c.icon} ${c.name}</h1>
     <p class="muted" style="margin-bottom:22px">${c.desc}</p>
     <div class="section"><div class="section-head"><h2>Zlecenia (${jobs.length})</h2></div>
-      ${jobs.length? `<div class="grid grid-3">${jobs.map(jobCard).join('')}</div>` : '<div class="empty">Brak zleceń w tej kategorii. <a href="#/dodaj">Dodaj pierwsze!</a></div>'}
+      ${jobs.length? `<div class="grid grid-3">${jobs.map(j=>jobCard(j)).join('')}</div>` : '<div class="empty">Brak zleceń w tej kategorii. <a href="#/dodaj">Dodaj pierwsze!</a></div>'}
     </div>
     <div class="section"><div class="section-head"><h2>Polecani wykonawcy w tej kategorii</h2></div>
       ${firms.length? `<div class="grid grid-3">${firms.map(companyCard).join('')}</div>` : '<div class="empty">Brak firm w tej kategorii.</div>'}
@@ -323,7 +325,7 @@ views.zlecenia = () => {
         <option value="completed" ${f.status==='completed'?'selected':''}>Zakończone</option>
       </select>
     </div>
-    ${jobs.length? `<div class="grid grid-3">${jobs.map(jobCard).join('')}</div>` : '<div class="empty">Brak zleceń spełniających kryteria.</div>'}`;
+    ${jobs.length? `<div class="grid grid-3">${jobs.map(j=>jobCard(j)).join('')}</div>` : '<div class="empty">Brak zleceń spełniających kryteria.</div>'}`;
 };
 function setJobFilter(k,v){ window._jobFilters = {...(window._jobFilters||{cat:'',city:'',status:'open',q:''}), [k]:v}; render(); }
 
@@ -332,6 +334,9 @@ views.zlecenie = (id) => {
   const c = cat(j.cat); const u = me();
   const owner = u && u.type==='client' && u.id===j.clientId;
   const isCompany = u && u.type==='company';
+  // Nazwa zleceniodawcy widoczna tylko dla właściciela oraz dla wykonawcy,
+  // którego oferta została zaakceptowana (po wyborze firmy przez klienta).
+  const canSeeClient = owner || (isCompany && j.acceptedCompany && u.id===j.acceptedCompany);
   const myOffer = isCompany && j.offers.find(o=>o.companyId===u.id);
   const sortedOffers = [...j.offers].sort((a,b)=>{
     // wyróżnienie: plany pro/unlimited na górze, potem renoma
@@ -359,7 +364,7 @@ views.zlecenie = (id) => {
         <div class="kv"><span>Budżet klienta</span><b>${esc(j.budget)}</b></div>
         ${j.deadline ? `<div class="kv"><span>Planowany termin realizacji</span><b>📅 ${esc(j.deadline)}</b></div>`:''}
         <div class="kv"><span>Dodano</span><b>${j.created}</b></div>
-        <div class="kv"><span>Zleceniodawca</span><b>${esc(client(j.clientId)?.name||j.clientName||'Klient')}</b></div>
+        <div class="kv"><span>Zleceniodawca</span><b>${canSeeClient ? esc(client(j.clientId)?.name||j.clientName||'Klient') : '🔒 widoczne po akceptacji oferty'}</b></div>
         ${owner && j.status==='completed'?`<div style="margin-top:14px"><button class="btn btn-outline btn-sm" onclick="archiveJob('${j.id}')">🗄️ Archiwizuj zlecenie</button></div>`:''}
         ${owner && j.status!=='completed' && j.status!=='archived'?`<div style="margin-top:14px"><button class="btn btn-danger btn-sm" onclick="deleteJob('${j.id}')">🗑️ Usuń zlecenie</button></div>`:''}
       </div>
@@ -850,7 +855,7 @@ views._panelCompany = (u) => {
 
   <div class="panel">
     <h2>Zlecenia dopasowane do Twoich specjalizacji (${matching.length})</h2>
-    ${matching.length? `<div class="grid grid-3">${matching.slice(0,6).map(jobCard).join('')}</div>` : '<div class="empty">Brak nowych dopasowanych zleceń.</div>'}
+    ${matching.length? `<div class="grid grid-3">${matching.slice(0,6).map(j=>jobCard(j)).join('')}</div>` : '<div class="empty">Brak nowych dopasowanych zleceń.</div>'}
   </div>
 
   <div class="panel">

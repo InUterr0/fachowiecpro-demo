@@ -97,7 +97,16 @@ alter table public.reviews   enable row level security;
 alter table public.messages  enable row level security;
 
 -- Profile: publicznie czytelne, edycja tylko własnego
-create policy "clients select"  on public.clients   for select using (true);
+-- Dane klienta widoczne tylko dla niego samego oraz dla wykonawcy,
+-- którego oferta na jego zlecenie została zaakceptowana.
+create policy "clients select"  on public.clients   for select using (
+  auth.uid() = id
+  or exists (
+    select 1 from public.jobs j
+    where j.client_id = clients.id
+      and j.accepted_company = auth.uid()
+  )
+);
 create policy "clients insert"  on public.clients   for insert with check (auth.uid() = id);
 create policy "clients update"  on public.clients   for update using (auth.uid() = id);
 
