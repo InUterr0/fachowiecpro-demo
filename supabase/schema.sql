@@ -194,3 +194,28 @@ create policy "forum_comments select" on public.forum_comments for select using 
 create policy "forum_comments insert" on public.forum_comments for insert with check (auth.uid() = author_id);
 create policy "forum_comments update" on public.forum_comments for update using (auth.uid() = author_id);
 create policy "forum_comments delete" on public.forum_comments for delete using (auth.uid() = author_id);
+
+-- ============================================================
+-- USUWANIE WŁASNEGO KONTA
+-- Funkcja kasuje WYŁĄCZNIE konto zalogowanego użytkownika (auth.uid()).
+-- Nie przyjmuje żadnego ID z zewnątrz => nikt nie usunie cudzego konta.
+-- Usunięcie z auth.users kaskaduje (ON DELETE CASCADE) do clients/companies,
+-- a stąd dalej do jobs, offers, reviews, messages, forum_posts, forum_comments.
+-- Uruchom w SQL Editor, jeśli reszta schematu już istnieje.
+-- ============================================================
+create or replace function public.delete_account()
+returns void
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Brak zalogowanego użytkownika';
+  end if;
+  delete from auth.users where id = auth.uid();
+end;
+$$;
+
+revoke all on function public.delete_account() from public, anon;
+grant execute on function public.delete_account() to authenticated;

@@ -194,6 +194,30 @@ async function logout(){
   location.hash='#/'; toast('Wylogowano');
 }
 
+// Usuwanie własnego konta — z podwójnym potwierdzeniem i weryfikacją hasłem
+async function initiateDeleteAccount(){
+  const u = me();
+  if(!u){ location.hash='#/logowanie'; return; }
+  const co = u.type==='company';
+  const what = co
+    ? 'konto wykonawcy wraz z ofertami, renomą i opiniami'
+    : 'konto klienta wraz ze wszystkimi zleceniami i ocenami';
+  if(!confirm(`Czy na pewno chcesz trwale usunąć ${what}?\n\nTej operacji NIE można cofnąć.`)) return;
+  const conf = prompt('Aby potwierdzić, wpisz wielkimi literami: USUWAM');
+  if(conf===null) return;
+  if(conf.trim().toUpperCase()!=='USUWAM'){ toast('❌ Nie potwierdzono — wpisz USUWAM'); return; }
+  const pwd = prompt('Podaj hasło do konta, aby potwierdzić usunięcie:');
+  if(!pwd){ toast('❌ Anulowano — wymagane hasło'); return; }
+  try{
+    await Data.reauthenticate(u.email, pwd);   // potwierdza, że to właściciel
+    await Data.deleteAccount();                 // RPC kasuje wyłącznie auth.uid()
+    await sync();
+    location.hash='#/'; toast('Konto zostało trwale usunięte. 👋');
+  }catch(err){
+    toast('❌ '+err.message);
+  }
+}
+
 // ===================== WIDOKI =====================
 const views = {};
 
@@ -801,7 +825,8 @@ views._panelClient = (u) => {
 
   <div class="section-head" style="margin-top:34px"><h2>🧮 Kalkulator wyceny remontu</h2></div>
   <p class="muted" style="margin-bottom:14px">Oszacuj orientacyjny koszt, zanim dodasz zlecenie.</p>
-  ${renoCalcBlock()}`;
+  ${renoCalcBlock()}
+  ${dangerZone()}`;
 };
 
 views._panelCompany = (u) => {
@@ -837,8 +862,19 @@ views._panelCompany = (u) => {
           <div style="text-align:right"><div class="price">${esc(o.price)}</div>${o.accepted?'<span class="verified">✔ wybrana przez klienta</span>':'<span class="muted" style="font-size:.8rem">oczekuje</span>'}</div>
         </div>
       </div>`).join('') : '<div class="empty">Nie wysłałeś jeszcze żadnej oferty.</div>'}
-  </div>`;
+  </div>
+  ${dangerZone()}`;
 };
+
+// Blok „strefa niebezpieczna" — usuwanie własnego konta (klient/fachowiec/firma)
+function dangerZone(){
+  return `
+  <div class="panel" style="margin-top:34px;border:1px solid #f5c2c7;background:#fff5f5">
+    <h2 style="color:#b02a37">⚠️ Usuń konto</h2>
+    <p class="muted" style="margin-bottom:14px">Trwałe usunięcie konta i wszystkich powiązanych danych (zlecenia, oferty, opinie, wiadomości). Tej operacji nie można cofnąć. Usuwasz wyłącznie własne konto.</p>
+    <button class="btn btn-sm" style="background:#b02a37;color:#fff;border-color:#b02a37" onclick="initiateDeleteAccount()">🗑️ Usuń moje konto</button>
+  </div>`;
+}
 
 views.notfound = () => `<div class="empty"><h2>404</h2><p>Nie znaleziono strony.</p><a href="#/">Wróć na stronę główną</a></div>`;
 

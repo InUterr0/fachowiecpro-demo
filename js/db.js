@@ -113,6 +113,20 @@ const Data = {
     DB.session = null;
   },
 
+  // Potwierdzenie tożsamości hasłem przed usunięciem konta
+  async reauthenticate(email, password){
+    const {error} = await sb.auth.signInWithPassword({email, password});
+    if(error) throw new Error('Błędne hasło — konto nie zostało usunięte');
+  },
+
+  // Usuwa WYŁĄCZNIE konto zalogowanego użytkownika (RPC kasuje auth.uid())
+  async deleteAccount(){
+    const {error} = await sb.rpc('delete_account');
+    if(error) _fail(error);
+    await sb.auth.signOut();
+    DB.session = null;
+  },
+
   // --- zdjęcia: dataURL -> Storage -> publiczny URL ---
   async uploadPhotos(dataUrls){
     const urls = [];
