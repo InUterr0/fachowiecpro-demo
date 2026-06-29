@@ -223,6 +223,29 @@ async function initiateDeleteAccount(){
 // ===================== WIDOKI =====================
 const views = {};
 
+// Pasek statystyk hero. Gdy w serwisie są już prawdziwe dane (zlecenia/firmy/opinie)
+// pokazuje realne liczby. Gdy baza jest jeszcze pusta — zamiast martwych „0" pokazuje
+// prawdziwe fakty o produkcie (obszar, kategorie, darmowa promocja, czas dodania zlecenia).
+// Żadnych zmyślonych liczników — tylko dane, które użytkownik może sam zweryfikować.
+views._heroStats = () => {
+  const hasData = DB.jobs.length || DB.companies.length || DB.reviews.length;
+  if (hasData) {
+    const avg = DB.reviews.length ? Math.round(DB.reviews.reduce((s,r)=>s+r.stars,0)/DB.reviews.length*10)/10+' ★' : '—';
+    return `<div class="hero-stats">
+      <div><b>${DB.jobs.length}</b><span>zleceń w serwisie</span></div>
+      <div><b>${DB.companies.length}</b><span>wykonawców</span></div>
+      <div><b>${DB.reviews.length}</b><span>zweryfikowanych opinii</span></div>
+      <div><b>${avg}</b><span>średnia ocena prac</span></div>
+    </div>`;
+  }
+  return `<div class="hero-stats">
+      <div><b>Trójmiasto</b><span>Gdańsk · Gdynia · Sopot</span></div>
+      <div><b>${CATEGORIES.length}</b><span>kategorii prac</span></div>
+      <div><b>0 zł</b><span>konto wykonawcy w promocji</span></div>
+      <div><b>2 min</b><span>tyle zajmuje dodanie zlecenia</span></div>
+    </div>`;
+};
+
 views.home = () => {
   const openJobs = DB.jobs.filter(j=>j.status==='open');
   const topCompanies = [...DB.companies].sort((a,b)=>repScore(b.id)-repScore(a.id)).slice(0,3);
@@ -236,12 +259,7 @@ views.home = () => {
       <a class="btn btn-ghost" href="#/rejestracja">Jestem wykonawcą</a>
     </div>
     <div class="promo-pill">🎉 Promocja startowa — dla wykonawców <b>wszystko za darmo</b>, bez limitów i opłat</div>
-    <div class="hero-stats">
-      <div><b>${DB.jobs.length}</b><span>zleceń w serwisie</span></div>
-      <div><b>${DB.companies.length}</b><span>wykonawców</span></div>
-      <div><b>${DB.reviews.length}</b><span>zweryfikowanych opinii</span></div>
-      <div><b>${DB.reviews.length ? Math.round(DB.reviews.reduce((s,r)=>s+r.stars,0)/DB.reviews.length*10)/10+' ★' : '—'}</b><span>średnia ocena prac</span></div>
-    </div>
+    ${views._heroStats()}
   </div>
 
   <div class="section">
@@ -258,12 +276,16 @@ views.home = () => {
 
   <div class="section">
     <div class="section-head"><h2>Najnowsze otwarte zlecenia</h2><a href="#/zlecenia">Wszystkie zlecenia →</a></div>
-    <div class="grid grid-3">${openJobs.slice(0,6).map(j=>jobCard(j)).join('')}</div>
+    ${openJobs.length
+      ? `<div class="grid grid-3">${openJobs.slice(0,6).map(j=>jobCard(j)).join('')}</div>`
+      : `<div class="empty">Bądź pierwszym klientem w Trójmieście — <a href="#/dodaj">dodaj zlecenie za darmo</a>, a wykonawcy prześlą Ci oferty z wyceną.</div>`}
   </div>
 
   <div class="section">
     <div class="section-head"><h2>Wykonawcy z najwyższą renomą</h2><a href="#/ranking">Pełny ranking →</a></div>
-    <div class="grid grid-3">${topCompanies.map(companyCard).join('')}</div>
+    ${topCompanies.length
+      ? `<div class="grid grid-3">${topCompanies.map(companyCard).join('')}</div>`
+      : `<div class="empty">Ranking buduje się z prawdziwych ocen za wykonane prace. <a href="#/rejestracja">Załóż konto wykonawcy</a> w darmowej promocji startowej i bądź pierwszy.</div>`}
   </div>
 
   <div class="section">
