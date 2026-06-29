@@ -196,19 +196,11 @@ async function logout(){
   location.hash='#/'; toast('Wylogowano');
 }
 
-// Usuwanie własnego konta — z podwójnym potwierdzeniem i weryfikacją hasłem
+// Usuwanie własnego konta — potwierdzenie wyłącznie hasłem
 async function initiateDeleteAccount(){
   const u = me();
   if(!u){ location.hash='#/logowanie'; return; }
-  const co = u.type==='company';
-  const what = co
-    ? 'konto wykonawcy wraz z ofertami, renomą i opiniami'
-    : 'konto klienta wraz ze wszystkimi zleceniami i ocenami';
-  if(!confirm(`Czy na pewno chcesz trwale usunąć ${what}?\n\nTej operacji NIE można cofnąć.`)) return;
-  const conf = prompt('Aby potwierdzić, wpisz wielkimi literami: USUWAM');
-  if(conf===null) return;
-  if(conf.trim().toUpperCase()!=='USUWAM'){ toast('❌ Nie potwierdzono — wpisz USUWAM'); return; }
-  const pwd = prompt('Podaj hasło do konta, aby potwierdzić usunięcie:');
+  const pwd = prompt('Podaj hasło do konta, aby trwale usunąć konto:');
   if(!pwd){ toast('❌ Anulowano — wymagane hasło'); return; }
   try{
     await Data.reauthenticate(u.email, pwd);   // potwierdza, że to właściciel
