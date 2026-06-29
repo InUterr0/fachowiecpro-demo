@@ -1039,11 +1039,19 @@ async function acceptOffer(jobId, companyId){
   }catch(err){ toast('❌ '+err.message); }
 }
 
+const _pendingJobDelete = {};
 async function deleteJob(jobId){
   const u = me();
   const j = DB.jobs.find(x=>x.id===jobId);
   if(!u || u.type!=='client' || !j || j.clientId!==u.id){ toast('❌ Możesz usunąć tylko własne zlecenie'); return; }
-  if(!confirm(`Usunąć zlecenie „${j.title}"? Tej operacji nie można cofnąć — znikną też oferty i wiadomości do tego zlecenia.`)) return;
+  // Potwierdzenie bez okienka: pierwszy klik uzbraja, drugi (w ciągu 4 s) usuwa
+  if(_pendingJobDelete[jobId]){
+    clearTimeout(_pendingJobDelete[jobId]); delete _pendingJobDelete[jobId];
+  } else {
+    _pendingJobDelete[jobId] = setTimeout(()=>{ delete _pendingJobDelete[jobId]; }, 4000);
+    toast('⚠️ Kliknij „Usuń" jeszcze raz, aby trwale usunąć zlecenie (oferty i wiadomości też znikną)');
+    return;
+  }
   try{
     await Data.deleteJob(jobId);
     await sync();
