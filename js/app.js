@@ -200,8 +200,9 @@ async function logout(){
 async function initiateDeleteAccount(){
   const u = me();
   if(!u){ location.hash='#/logowanie'; return; }
-  const pwd = prompt('Podaj hasło do konta, aby trwale usunąć konto:');
-  if(!pwd){ toast('❌ Anulowano — wymagane hasło'); return; }
+  const input = document.getElementById('delAccPwd');
+  const pwd = input ? input.value : '';
+  if(!pwd){ toast('❌ Wpisz hasło, aby usunąć konto'); if(input) input.focus(); return; }
   try{
     await Data.reauthenticate(u.email, pwd);   // potwierdza, że to właściciel
     await Data.deleteAccount();                 // RPC kasuje wyłącznie auth.uid()
@@ -891,7 +892,17 @@ function dangerZone(){
   <div class="panel" style="margin-top:34px;border:1px solid #f5c2c7;background:#fff5f5">
     <h2 style="color:#b02a37">⚠️ Usuń konto</h2>
     <p class="muted" style="margin-bottom:14px">Trwałe usunięcie konta i wszystkich powiązanych danych (zlecenia, oferty, opinie, wiadomości). Tej operacji nie można cofnąć. Usuwasz wyłącznie własne konto.</p>
-    <button class="btn btn-sm" style="background:#b02a37;color:#fff;border-color:#b02a37" onclick="initiateDeleteAccount()">🗑️ Usuń moje konto</button>
+    <button class="btn btn-sm" style="background:#b02a37;color:#fff;border-color:#b02a37" onclick="document.getElementById('delAccForm').style.display='block';this.style.display='none'">🗑️ Usuń moje konto</button>
+    <div id="delAccForm" style="display:none">
+      <p class="muted" style="margin-bottom:8px">Podaj hasło, aby potwierdzić usunięcie:</p>
+      <input id="delAccPwd" type="password" autocomplete="current-password" placeholder="Hasło do konta"
+             onkeydown="if(event.key==='Enter')initiateDeleteAccount()"
+             style="padding:8px 10px;border:1px solid #f5c2c7;border-radius:6px;width:240px;max-width:100%">
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-sm" style="background:#b02a37;color:#fff;border-color:#b02a37" onclick="initiateDeleteAccount()">Usuń konto trwale</button>
+        <button class="btn btn-sm btn-outline" onclick="document.getElementById('delAccForm').style.display='none';document.getElementById('delAccPwd').value=''">Anuluj</button>
+      </div>
+    </div>
   </div>`;
 }
 
